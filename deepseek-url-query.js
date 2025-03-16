@@ -85,8 +85,8 @@
         setReactInputValue(textarea, query);
 
         // 强制开启联网搜索
-        const webSearchBtn = findButtonByText('Search');
-        await toggleMode(webSearchBtn, true);
+        // const webSearchBtn = findButtonByText('Search');
+        // await toggleMode(webSearchBtn, true);
 
         // 处理深度思考模式
         const deepThinkBtn = findButtonByText('DeepThink (R1)');
