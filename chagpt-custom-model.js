@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT Custom Model
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Customize ChatGPT model with URL query
+// @version      1.2
+// @description  Customize ChatGPT by selecting a model and submitting a query via URL parameters
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=chatgpt.com
@@ -14,94 +14,96 @@
 (function () {
     'use strict';
 
-    // Parse URL parameters
+    // Get URL parameter value by key
     function getQueryParam(name) {
-        const params = new URLSearchParams(window.location.search);
-        return params.get(name);
+        return new URLSearchParams(window.location.search).get(name);
     }
 
-    // Find button containing specified text
-    function findButtonByText(text) {
-        const xpath = `//div[@role='button']//span[contains(text(), '${text}')]`;
-        const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-        return result.singleNodeValue?.closest('div[role="button"]');
-    }
-
-    // Check if button is active
-    function isButtonActive(button) {
-        return getComputedStyle(button).getPropertyValue('--ds-button-color').includes('77, 107, 254');
-    }
-
-    // Trigger React input event
-    function setReactInputValue(element, value) {
-        const inputEvent = new Event('input', { bubbles: true, composed: true });
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype,
-            'value'
-        ).set;
-        nativeInputValueSetter.call(element, value);
-        element.dispatchEvent(inputEvent);
-    }
-
-    // Handle mode switching
-    async function toggleMode(button, shouldEnable) {
-        if (!button) return;
-        const isActive = isButtonActive(button);
-        if (shouldEnable && !isActive) {
-            button.click();
-            await new Promise(r => setTimeout(r, 200));
-        }
-        if (!shouldEnable && isActive) {
-            button.click();
-            await new Promise(r => setTimeout(r, 200));
-        }
-    }
-
-    // Main processing function
-    async function processQueryParams() {
-        // Get parameters (bracket issue fixed)
-        const mParam = getQueryParam('mqqq');
-        const model = mParam ? decodeURIComponent(mParam) : '';
-
-        if (!model) return;
-
-        // Wait for necessary elements to load
-        const maxWaitTime = 5000;
+    // Wait for element to appear in DOM with timeout
+    async function waitForElement(selector, timeout = 5000) {
         const startTime = Date.now();
-
-        // Wait for model dropdown btn to load
-        let modelDropdownBtn;
-        while (!(modelDropdownBtn = document.querySelector('[data-testid="model-switcher-dropdown-button"]')) && Date.now() - startTime < maxWaitTime) {
-            console.log('waiting for modelDropdownBtn');
-            await new Promise(r => setTimeout(r, 100));
+        while (Date.now() - startTime < timeout) {
+            const element = document.querySelector(selector);
+            if (element) return element;
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
-
-        if (!modelDropdownBtn) {
-            console.error('modelDropdownBtn not found');
-            return;
-        }
-
-        console.log('modelDropdownBtn found');
-        // Click model dropdown button
-        modelDropdownBtn.click();
-
-        // Wait for model option to load
-        let modelOption;
-        while (!(modelOption = document.querySelector(`[data-testid="model-switcher-${model}"]`)) && Date.now() - startTime < maxWaitTime) {
-            await new Promise(r => setTimeout(r, 100));
-        }
-
-        if (!modelOption) {
-            console.error('modelOption not found');
-            return;
-        }
-
-        // Click model option
-        modelOption.click();
+        throw new Error(`Timeout waiting for element: ${selector}`);
     }
 
-    // Execute after page load completes
+    // Dispatch pointer event to target element
+    function dispatchPointerEvent(target, type) {
+        const event = new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            pointerType: 'mouse',
+            isPrimary: true,
+        });
+        target.dispatchEvent(event);
+        console.log(`Dispatched pointer event: ${type}`);
+    }
+
+    // Execute multiple pointer events on target
+    function simulatePointerEvents(target, events) {
+        events.forEach(type => dispatchPointerEvent(target, type));
+    }
+
+    // Simulate Enter key press on target element
+    function simulateEnterKey(target) {
+        const keyEventProps = {
+            bubbles: true,
+            cancelable: true,
+            key: 'Enter',
+            code: 'Enter',
+            charCode: 13,
+            keyCode: 13,
+        };
+        target.dispatchEvent(new KeyboardEvent('keydown', keyEventProps));
+        console.log('Dispatched keydown for Enter');
+        target.dispatchEvent(new KeyboardEvent('keyup', keyEventProps));
+        console.log('Dispatched keyup for Enter');
+    }
+
+    // Process URL params to select model and submit query
+    async function processQueryParams() {
+        const mParam = getQueryParam('cm');
+        const qParam = getQueryParam('cq');
+        const model = mParam ? decodeURIComponent(mParam) : '';
+        const query = qParam ? decodeURIComponent(qParam) : '';
+
+        // Exit if no parameters provided
+        if (!model && !query) return;
+
+        try {
+            // Select model from dropdown
+            const modelDropdownButton = await waitForElement('[data-testid="model-switcher-dropdown-button"]');
+            simulatePointerEvents(modelDropdownButton, ['pointerover', 'pointerenter', 'pointermove', 'pointerdown', 'pointerup']);
+
+            // Select specific model
+            const modelOptionSelector = `[data-testid="model-switcher-${model}"]`;
+            const modelOption = await waitForElement(modelOptionSelector);
+            simulatePointerEvents(modelOption, ['pointerover', 'pointerenter', 'pointermove', 'click']);
+
+            // Focus and populate prompt textarea
+            const promptTextarea = await waitForElement('#prompt-textarea');
+            simulatePointerEvents(promptTextarea, ['pointerover', 'pointerenter', 'pointermove', 'click']);
+            promptTextarea.focus();
+
+            // Insert text and trigger input event
+            document.execCommand('insertText', false, query);
+            promptTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            console.log("Dispatched input event");
+
+            // Submit query after brief delay
+            setTimeout(() => {
+                simulateEnterKey(promptTextarea);
+            }, 500);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // Initialize script after page load
     window.addEventListener('load', () => {
-        setTimeout(processQueryParams, 1000);
+        setTimeout(processQueryParams, 500);
     });
 })();
