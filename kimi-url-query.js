@@ -1,43 +1,58 @@
 // ==UserScript==
 // @name         Kimi Moonshot URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Extracts q query parameter from URL, fills in the input box, and submits the search
-// @author       kyleczhang
+// @version      1.1
+// @description  Extracts 'q' URL parameter, populates the chat input, and submits the query on Kimi website
+// @author
 // @match        https://kimi.moonshot.cn/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=kimi.moonshot.cn
 // @license      MIT
+// @grant        none
 // ==/UserScript==
 
-(async () => {
+(function () {
     'use strict';
-    const query = new URLSearchParams(window.location.search).get('q');
-    if (!query) return;
 
-    const waitForElement = (selector) => {
-        return new Promise((resolve) => {
-            const elem = document.querySelector(selector);
-            if (elem) {
-                return resolve(elem);
-            }
+    // Get URL parameter value by key
+    function getQueryParam(name) {
+        return new URLSearchParams(window.location.search).get(name);
+    }
 
-            const observer = new MutationObserver(() => {
-                const elem = document.querySelector(selector);
-                if (elem) {
-                    observer.disconnect();
-                    resolve(elem);
-                }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-        });
-    };
-    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+    // Wait for element to appear in the DOM with a timeout
+    async function waitForElement(selector, timeout = 5000) {
+        const startTime = Date.now();
+        while (Date.now() - startTime < timeout) {
+            const element = document.querySelector(selector);
+            if (element) return element;
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        throw new Error(`Timeout waiting for element: ${selector}`);
+    }
 
 
-    const chat = await waitForElement('.chat-input-editor');
-    chat.value = query;
-    chat.dispatchEvent(new InputEvent('input', { data: query, bubbles: true }));
+    // Process URL parameters: extract 'q' and submit it
+    async function processQueryParams() {
+        const query = getQueryParam('q');
+        if (!query) return;
 
-    await delay(500);
-    chat.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+        try {
+            const chatInput = await waitForElement('.chat-input-editor');
+            chatInput.focus();
+
+            chatInput.value = query;
+            chatInput.dispatchEvent(new InputEvent('input', { data: query, bubbles: true }));
+
+            // Submit query after a brief delay
+            setTimeout(() => {
+                chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+            }, 500);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // Initialize script after page load
+    window.addEventListener('load', () => {
+        setTimeout(processQueryParams, 500);
+    });
 })();
