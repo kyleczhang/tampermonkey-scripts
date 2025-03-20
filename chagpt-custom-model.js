@@ -6,9 +6,10 @@
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=chatgpt.com
-// @license      MIT
-// @grant        none
+// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/chagpt-custom-model.js
+// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/chagpt-custom-model.js
 // @run-at       document-end
+// @grant        none
 // ==/UserScript==
 
 (function () {

@@ -3,36 +3,45 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.0
 // @description  Add URL query string search functionality for DeepSeek web version, q is for query, r for DeepThink
-// @author       kyleczhang
 // @match        https://chat.deepseek.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deepseek.com
 // @license      MIT
 // @grant        none
+//@downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
+//@updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
 // @run-at       document-end
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    // 解析URL参数
+    // Parse URL parameters
     function getQueryParam(name) {
         const params = new URLSearchParams(window.location.search);
         return params.get(name);
     }
 
-    // 查找包含指定文本的按钮
+    // Find button by text
     function findButtonByText(text) {
         const xpath = `//div[@role='button']//span[contains(text(), '${text}')]`;
-        const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const result = document.evaluate(
+            xpath,
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+        );
         return result.singleNodeValue?.closest('div[role="button"]');
     }
 
-    // 检查按钮是否激活
+    // Check if the button is active
     function isButtonActive(button) {
-        return getComputedStyle(button).getPropertyValue('--ds-button-color').includes('77, 107, 254');
+        return getComputedStyle(button)
+            .getPropertyValue('--ds-button-color')
+            .includes('77, 107, 254');
     }
 
-    // 触发React的输入事件
+    // Trigger React's input event
     function setReactInputValue(element, value) {
         const inputEvent = new Event('input', { bubbles: true, composed: true });
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
@@ -43,56 +52,55 @@
         element.dispatchEvent(inputEvent);
     }
 
-    // 处理模式切换
+    // Toggle mode (activate or deactivate) based on shouldEnable flag
     async function toggleMode(button, shouldEnable) {
         if (!button) return;
         const isActive = isButtonActive(button);
         if (shouldEnable && !isActive) {
             button.click();
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise((r) => setTimeout(r, 200));
         }
         if (!shouldEnable && isActive) {
             button.click();
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise((r) => setTimeout(r, 200));
         }
     }
 
-    // 主处理函数
+    // Main function to process URL query parameters
     async function processQueryParams() {
-        // 获取参数（已修复括号问题）
         const qParam = getQueryParam('q');
         const query = qParam ? decodeURIComponent(qParam) : '';
         const needDeepThinking = getQueryParam('r') === 'true';
 
         if (!query) return;
 
-        // 等待必要元素加载
+        // Wait for necessary elements to load
         const maxWaitTime = 5000;
         const startTime = Date.now();
-
-        // 等待输入框加载
         let textarea;
+
+        // Wait for the input box to load
         while (!(textarea = document.getElementById('chat-input')) && Date.now() - startTime < maxWaitTime) {
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise((r) => setTimeout(r, 100));
         }
 
         if (!textarea) {
-            console.error('找不到输入框');
+            console.error('Could not find the input box');
             return;
         }
 
-        // 填充查询内容
+        // Set the query content in the input box
         setReactInputValue(textarea, query);
 
-        // 强制开启联网搜索
+        // Force enable online search (if needed)
         // const webSearchBtn = findButtonByText('Search');
         // await toggleMode(webSearchBtn, true);
 
-        // 处理深度思考模式
+        // Process DeepThink mode
         const deepThinkBtn = findButtonByText('DeepThink (R1)');
         await toggleMode(deepThinkBtn, needDeepThinking);
 
-        // 点击发送按钮
+        // Click the send button
         const sendBtn = document.querySelector('div[role="button"][aria-disabled="false"]');
         if (sendBtn) {
             sendBtn.click();
@@ -108,7 +116,7 @@
         }
     }
 
-    // 页面加载完成后执行
+    // Execute processQueryParams after the page has loaded
     window.addEventListener('load', () => {
         setTimeout(processQueryParams, 1000);
     });

@@ -6,6 +6,9 @@
 // @author       kyleczhang
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
+// @license      MIT
+// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-watch-later-shortcut.js
+// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-watch-later-shortcut.js
 // @grant        none
 // ==/UserScript==
 

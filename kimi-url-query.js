@@ -3,10 +3,12 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.1
 // @description  Extracts 'q' URL parameter, populates the chat input, and submits the query on Kimi website
-// @author
+// @author       kyleczhang
 // @match        https://kimi.moonshot.cn/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=kimi.moonshot.cn
 // @license      MIT
+// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/kimi-url-query.js
+// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/kimi-url-query.js
 // @grant        none
 // ==/UserScript==
 
@@ -28,7 +30,6 @@
         }
         throw new Error(`Timeout waiting for element: ${selector}`);
     }
-
 
     // Process URL parameters: extract 'q' and submit it
     async function processQueryParams() {
