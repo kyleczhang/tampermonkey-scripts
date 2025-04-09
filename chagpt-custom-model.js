@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT Custom Model
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.1.0
 // @description  Customize ChatGPT by selecting a model and submitting a query via URL parameters
 // @author       kyleczhang
 // @match        https://chatgpt.com/*

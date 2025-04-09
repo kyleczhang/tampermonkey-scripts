@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DeepSeek query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Add URL query string search functionality for DeepSeek web version, q is for query, r for DeepThink
 // @match        https://chat.deepseek.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deepseek.com
