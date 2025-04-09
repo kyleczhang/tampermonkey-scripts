@@ -56,9 +56,9 @@
     // Function to add keyboard shortcuts for adding/removing videos
     function addKeyboardShortcuts() {
         document.addEventListener('keydown', function (event) {
-            if (event.code === 'KeyL' && event.altKey && !event.shiftKey) {
+            if (event.code === 'KeyP' && event.altKey && !event.shiftKey) {
                 executeYouTubeCommand("add");
-            } else if (event.code === 'KeyL' && event.altKey && event.shiftKey) {
+            } else if (event.code === 'KeyP' && event.altKey && event.shiftKey) {
                 executeYouTubeCommand("remove");
             }
         });
