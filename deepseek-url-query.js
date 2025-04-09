@@ -7,8 +7,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deepseek.com
 // @license      MIT
 // @grant        none
-//@downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
-//@updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
+// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
+// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
 // @run-at       document-end
 // ==/UserScript==
 
