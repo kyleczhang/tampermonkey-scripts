@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tencent Yuanbao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.2.0
 // @description  Add URL query string search functionality for Tencent Yuanbao web version, q is for query
 // @match        https://yuanbao.tencent.com/chat/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=yuanbao.tencent.com

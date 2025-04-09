@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Docker Internet Extender
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.1.0
 // @description  try to take over the world!
 // @author       kyleczhang
 // @match        *eng.xiaojukeji.com/devmachine/detail/17875
