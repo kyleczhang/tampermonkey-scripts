@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Watch Later Shortcut
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
+// @version      1.1.2
 // @description  Add and remove current YouTube video to and from the Youtube Watch Later list using a keyboard shortcut.
 // @author       kyleczhang
 // @match        https://www.youtube.com/*
@@ -56,9 +56,9 @@
     // Function to add keyboard shortcuts for adding/removing videos
     function addKeyboardShortcuts() {
         document.addEventListener('keydown', function (event) {
-            if (event.code === 'KeyP' && event.altKey && event.shiftKey) {
+            if (event.code === 'KeyR' && event.altKey && event.shiftKey) {
                 executeYouTubeCommand("add");
-            } else if (event.code === 'KeyL' && event.altKey && event.shiftKey) {
+            } else if (event.code === 'KeyF' && event.altKey && event.shiftKey) {
                 executeYouTubeCommand("remove");
             }
         });
