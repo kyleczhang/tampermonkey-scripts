@@ -4,8 +4,8 @@
 // @version      1.2.0
 // @description  Extracts 'q' URL parameter, populates the chat input, and submits the query on Kimi website
 // @author       kyleczhang
-// @match        https://kimi.moonshot.cn/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=kimi.moonshot.cn
+// @match        https://kimi.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=kimi.com
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/kimi-url-query.js
 // @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/kimi-url-query.js
