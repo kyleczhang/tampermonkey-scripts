@@ -15,12 +15,12 @@
 (function () {
     'use strict';
 
-    // Get URL parameter value by key
+    // Get URL parameter value by key.
     function getQueryParam(name) {
         return new URLSearchParams(window.location.search).get(name);
     }
 
-    // Wait for element to appear in the DOM with a timeout
+    // Wait for element to appear in the DOM with a timeout.
     async function waitForElement(selector, timeout = 5000) {
         const startTime = Date.now();
         while (Date.now() - startTime < timeout) {
@@ -31,7 +31,7 @@
         throw new Error(`Timeout waiting for element: ${selector}`);
     }
 
-    // Process URL parameters: extract 'q' and submit it
+    // Process URL parameters: extract 'q' and submit it.
     async function processQueryParams() {
         const query = getQueryParam('q');
         if (!query) return;
@@ -43,7 +43,7 @@
             chatInput.value = query;
             chatInput.dispatchEvent(new InputEvent('input', { data: query, bubbles: true }));
 
-            // Submit query after a brief delay
+            // Submit query after a brief delay.
             setTimeout(() => {
                 chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
             }, 500);
@@ -52,7 +52,7 @@
         }
     }
 
-    // Initialize script after page load
+    // Initialize script after page load.
     window.addEventListener('load', () => {
         setTimeout(processQueryParams, 500);
     });
