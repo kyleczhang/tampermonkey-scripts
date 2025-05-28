@@ -1,59 +1,53 @@
 // ==UserScript==
 // @name         Kimi Moonshot URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.2.2
+// @version      1.2.4
 // @description  Extracts 'q' URL parameter, populates the chat input, and submits the query on Kimi website
 // @author       kyleczhang
-// @match        https://kimi.com/*
+// @match        https://www.kimi.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=kimi.com
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/kimi-url-query.js
 // @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/kimi-url-query.js
 // @grant        none
+// @run-at       document-end
 // ==/UserScript==
 
-(function () {
+(async () => {
     'use strict';
 
-    // Get URL parameter value by key.
-    function getQueryParam(name) {
-        return new URLSearchParams(window.location.search).get(name);
-    }
+    // Get the query parameter from URL
+    const query = new URLSearchParams(window.location.search).get('q');
+    console.log('Query from URL:', query);
+    if (!query) return;
 
-    // Wait for element to appear in the DOM with a timeout.
-    async function waitForElement(selector, timeout = 5000) {
-        const startTime = Date.now();
-        while (Date.now() - startTime < timeout) {
-            const element = document.querySelector(selector);
-            if (element) return element;
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        throw new Error(`Timeout waiting for element: ${selector}`);
-    }
+    const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-    // Process URL parameters: extract 'q' and submit it.
-    async function processQueryParams() {
-        const query = getQueryParam('q');
-        if (!query) return;
+    // Wait for necessary elements to load with a timeout
+    const maxWaitTime = 5000;
+    const startTime = Date.now();
+    let chatInput;
 
-        try {
-            const chatInput = await waitForElement('.chat-input-editor');
-            chatInput.focus();
-
-            chatInput.value = query;
-            chatInput.dispatchEvent(new InputEvent('input', { data: query, bubbles: true }));
-
-            // Submit query after a brief delay.
-            setTimeout(() => {
-                chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-            }, 500);
-        } catch (error) {
-            console.error(error);
+    // Poll for the chat input element
+    while (!chatInput && Date.now() - startTime < maxWaitTime) {
+        chatInput = document.querySelector('.chat-input-editor');
+        console.log(chatInput);
+        if (!chatInput) {
+            await delay(100);
         }
     }
 
-    // Initialize script after page load.
-    window.addEventListener('load', () => {
-        setTimeout(processQueryParams, 500);
-    });
+    if (!chatInput) {
+        console.error('Could not find chat input element within the timeout period');
+        return;
+    }
+
+    // Focus and populate the input
+    chatInput.focus();
+    chatInput.value = query;
+    chatInput.dispatchEvent(new InputEvent('input', { data: query, bubbles: true }));
+
+    // Submit query after a brief delay
+    await delay(500);
+    chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 })();
