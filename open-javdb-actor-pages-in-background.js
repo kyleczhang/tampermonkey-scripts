@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Open Actor Pages in Background
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.1.0
 // @description  Locate actor links containing avatar figures and open their pages in background tabs at 1-second intervals via Option+Shift+O
 // @match        *://*.javdb.com/users/collection_actors*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=javdb.com
