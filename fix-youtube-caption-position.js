@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         fix youtube caption position
 // @namespace    http://tampermonkey.net/
-// @version      2.8.0
+// @version      2.8.1
 // @description  Fix youtube caption's position. You can change the position by change the variable of cMarginBottom, cBottom or cLeft.
 // @author       kyleczhang
 // @match        *://*.youtube.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=captions.ai
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/fix-youtube-caption-position.js
 // @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/fix-youtube-caption-position.js
