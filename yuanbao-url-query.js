@@ -1,43 +1,82 @@
 // ==UserScript==
 // @name         Tencent Yuanbao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.2.3
+// @version      1.2.8
 // @description  Add URL query string search functionality for Tencent Yuanbao web version, q is for query
-// @match        https://yuanbao.tencent.com/chat/*
+// @match        https://yuanbao.tencent.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=yuanbao.tencent.com
 // @license      MIT
 // @downloadURL https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/yuanbao-url-query.js
 // @updateURL   https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/yuanbao-url-query.js
-// @run-at      document-end
+// @run-at      document-start
 // ==/UserScript==
+
+// Capture query parameter before redirect
+const savedQuery = new URLSearchParams(window.location.search).get('q');
+if (savedQuery) {
+    sessionStorage.setItem('yuanbao-query', savedQuery);
+}
 
 (async () => {
     'use strict';
-    const query = new URLSearchParams(window.location.search).get('q');
-    if (!query) return;
 
-    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+    // Get query from storage or URL
+    const query = sessionStorage.getItem('yuanbao-query') || new URLSearchParams(window.location.search).get('q');
+    if (!query) {
+        return;
+    }
+    sessionStorage.removeItem('yuanbao-query');
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const simulateInput = (elem, text) => {
-        elem.value = text;
-        if (elem.contentEditable === 'true') {
-            elem.textContent = text;
-            elem.innerHTML = text;
-        }
-        elem.dispatchEvent(new InputEvent('input', { data: text, bubbles: true }));
+        elem.focus();
+        elem.textContent = text;
+        elem.dispatchEvent(new Event('focus', { bubbles: true }));
+        elem.dispatchEvent(new InputEvent('input', {
+            data: text,
+            bubbles: true,
+            inputType: 'insertText'
+        }));
+        elem.dispatchEvent(new Event('change', { bubbles: true }));
     };
-    const simulateEnter = (elem, event = 'keydown') => {
-        elem.dispatchEvent(new KeyboardEvent(event, { key: 'Enter', keyCode: 13, bubbles: true }));
+
+    const simulateEnter = (elem) => {
+        elem.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+        elem.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+        elem.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
     };
+
     const simulateClick = (elem) => {
+        elem.focus();
+        elem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        elem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
         elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     };
 
-    // Wait for necessary elements to load with a timeout
-    const maxWaitTime = 5000;
+    // Wait for elements to load
+    const maxWaitTime = 10000;
     const startTime = Date.now();
     let button, chat, sendBtn;
 
+    // Wait for page to load
+    if (document.readyState !== 'complete') {
+        await new Promise(resolve => {
+            window.addEventListener('load', resolve, { once: true });
+        });
+    }
+
+    // Wait for DOM to stabilize
+    // let lastElementCount = 0;
+    // let stableCount = 0;
+    // while (stableCount < 3) {
+    //     const currentElementCount = document.querySelectorAll('*').length;
+    //     stableCount = currentElementCount === lastElementCount ? stableCount + 1 : 0;
+    //     lastElementCount = currentElementCount;
+    //     await delay(100);
+    // }
+
+    // Find required elements
     while (
         (!(button = document.querySelector('button[dt-button-id="model_switch"]')) ||
             !(chat = document.querySelector('.ql-editor')) ||
@@ -48,7 +87,6 @@
     }
 
     if (!button || !chat || !sendBtn) {
-        console.error('Could not find all required elements within the timeout period');
         return;
     }
 
@@ -57,6 +95,7 @@
     button.setAttribute("dt-ext1", "deep_seek");
     button.querySelector('span').textContent = "DeepSeek";
 
+    // Input query
     await delay(100);
     simulateInput(chat, query);
     await delay(100);
