@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Doubao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Add URL query string search functionality for Doubao web version, q is for query
 // @match        https://www.doubao.com/chat/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=doubao.com
