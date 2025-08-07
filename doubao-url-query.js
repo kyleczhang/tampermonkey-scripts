@@ -1,44 +1,49 @@
 // ==UserScript==
-// @name         Tencent Yuanbao query with URL
+// @name         Doubao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.2.9
-// @description  Add URL query string search functionality for Tencent Yuanbao web version, q is for query
-// @match        https://yuanbao.tencent.com/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=yuanbao.tencent.com
+// @version      1.0.0
+// @description  Add URL query string search functionality for Doubao web version, q is for query
+// @match        https://www.doubao.com/chat/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=doubao.com
 // @license      MIT
-// @downloadURL https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/yuanbao-url-query.js
-// @updateURL   https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/yuanbao-url-query.js
+// @downloadURL https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/doubao-url-query.js
+// @updateURL   https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/doubao-url-query.js
 // @run-at      document-start
 // ==/UserScript==
 
 // Capture query parameter before redirect
 const savedQuery = new URLSearchParams(window.location.search).get('q');
 if (savedQuery) {
-    sessionStorage.setItem('yuanbao-query', savedQuery);
+    sessionStorage.setItem('doubao-query', savedQuery);
 }
 
 (async () => {
     'use strict';
 
-    // Get query from storage or URL
-    const query = sessionStorage.getItem('yuanbao-query') || new URLSearchParams(window.location.search).get('q');
-    if (!query) {
-        return;
-    }
-    sessionStorage.removeItem('yuanbao-query');
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    const simulateInput = (elem, text) => {
+    const simulateInput = async (elem, text) => {
+
+        // Focus the element first
         elem.focus();
-        elem.textContent = text;
-        elem.dispatchEvent(new Event('focus', { bubbles: true }));
-        elem.dispatchEvent(new InputEvent('input', {
-            data: text,
-            bubbles: true,
-            inputType: 'insertText'
-        }));
+
+        // Clear existing content
+        elem.value = '';
+
+        try {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLTextAreaElement.prototype,
+                'value'
+            ).set;
+            nativeInputValueSetter.call(elem, text);
+            elem.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (e) {
+        }
+
+        // Final events
         elem.dispatchEvent(new Event('change', { bubbles: true }));
+
     };
 
     const simulateEnter = (elem) => {
@@ -54,10 +59,17 @@ if (savedQuery) {
         elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     };
 
+    // Get query from storage or URL
+    const query = sessionStorage.getItem('doubao-query') || new URLSearchParams(window.location.search).get('q');
+    if (!query) {
+        return;
+    }
+    sessionStorage.removeItem('doubao-query');
+
     // Wait for elements to load
     const maxWaitTime = 10000;
     const startTime = Date.now();
-    let button, chat, sendBtn;
+    let textarea, sendBtn;
 
     // Wait for page to load
     if (document.readyState !== 'complete') {
@@ -78,28 +90,33 @@ if (savedQuery) {
 
     // Find required elements
     while (
-        (!(button = document.querySelector('button[dt-button-id="model_switch"]')) ||
-            !(chat = document.querySelector('.ql-editor')) ||
-            !(sendBtn = document.querySelector('.style__send-btn___ZsLmU'))) &&
+        (!(textarea = document.querySelector('textarea[data-testid="chat_input_input"]')) ||
+            !(sendBtn = document.querySelector('button[data-testid="chat_input_send_button"]'))) &&
         Date.now() - startTime < maxWaitTime
     ) {
         await delay(100);
     }
 
-    if (!button || !chat || !sendBtn) {
+    if (!textarea || !sendBtn) {
         return;
     }
 
-    // Set model to DeepSeek
-    button.setAttribute("dt-model-id", "deep_seek");
-    button.setAttribute("dt-ext1", "deep_seek");
-    button.querySelector('span').textContent = "DeepSeek";
-
     // Input query
     await delay(100);
-    simulateInput(chat, query);
+    await simulateInput(textarea, query);
+    await delay(500); // Give more time for UI to react
+    simulateEnter(textarea);
     await delay(100);
-    simulateEnter(chat);
-    await delay(100);
-    simulateClick(sendBtn);
+
+    // Wait for send button to be enabled
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds
+    while (sendBtn.disabled && attempts < maxAttempts) {
+        await delay(100);
+        attempts++;
+    }
+
+    if (!sendBtn.disabled) {
+        simulateClick(sendBtn);
+    }
 })();
