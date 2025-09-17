@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name        ChatGPT play sound when finish generating
 // @namespace   http://tampermonkey.net/
-// @version     2.1
-// @description Plays a custom chime when ChatGPT finishes generating responses (optimized)
+// @version     2.3
+// @description Plays a custom chime when ChatGPT finishes generating responses (softer G-major arpeggio)
 // @match       https://chatgpt.com/*
 // @icon        https://www.google.com/s2/favicons?sz=64&domain=chatgpt.com
 // @grant       none
@@ -15,11 +15,20 @@
 
     // Configuration
     const CONFIG = {
-        volume: 0.2,
-        enableLogging: false,
-        debounceDelay: 100,
-        frequencies: [659.26, 659.26, 659.26, 987.76], // E5, E5, E5, B5
-        durations: [150, 150, 150, 300], // Note durations in ms
+        volume: 0.25,                 // Master volume (0.0 - 1.0)
+        enableLogging: false,         // Set true to see logs in console
+        debounceDelay: 100,           // Debounce for DOM checks in ms
+
+        // Softer, pleasant major arpeggio: G4, B4, D5, G5 (Hz)
+        frequencies: [392.00, 493.88, 587.33, 783.99],
+
+        // Note durations in ms (slightly longer last note to "land")
+        durations: [180, 180, 180, 400],
+
+        // Small gap between notes to avoid smear (ms)
+        noteGap: 30,
+
+        // Multiple selectors to detect "generation in progress"
         selectors: [
             'button[data-testid="stop-button"]',
             'button[aria-label*="Stop"]',
@@ -39,7 +48,7 @@
         }
 
         init() {
-            this.log('Initializing ChatGPT Sound Notifier v2.0', 'info');
+            this.log('Initializing ChatGPT Sound Notifier v2.2', 'info');
             this.initAudioContext();
             this.setupMutationObserver();
             this.checkInitialState();
@@ -60,7 +69,7 @@
         }
 
         setupMutationObserver() {
-            this.observer = new MutationObserver((mutations) => {
+            this.observer = new MutationObserver(() => {
                 this.debouncedCheck();
             });
 
@@ -162,22 +171,29 @@
                     await this.audioContext.resume();
                 }
 
-                const gainNode = this.audioContext.createGain();
-                gainNode.connect(this.audioContext.destination);
-                gainNode.gain.value = CONFIG.volume;
+                const masterGain = this.audioContext.createGain();
+                masterGain.connect(this.audioContext.destination);
+                masterGain.gain.value = CONFIG.volume;
 
                 let startTime = this.audioContext.currentTime;
 
+                // Play each note with a tiny gap for clarity
                 CONFIG.frequencies.forEach((freq, index) => {
-                    const oscillator = this.audioContext.createOscillator();
-                    oscillator.connect(gainNode);
-                    oscillator.type = 'triangle';
-                    oscillator.frequency.value = freq;
+                    const osc = this.audioContext.createOscillator();
+                    osc.connect(masterGain);
 
-                    const duration = CONFIG.durations[index] / 1000;
-                    oscillator.start(startTime);
-                    oscillator.stop(startTime + duration);
-                    startTime += duration;
+                    // Sine wave for a rounder, less buzzy tone
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+
+                    const durationSec = (CONFIG.durations[index] || 150) / 1000;
+                    const gapSec = (CONFIG.noteGap || 0) / 1000;
+
+                    // Simple per-note scheduling
+                    osc.start(startTime);
+                    osc.stop(startTime + durationSec);
+
+                    startTime += durationSec + gapSec;
                 });
 
                 this.log('Notification sound played successfully', 'success');
@@ -211,7 +227,7 @@
                 clearTimeout(this.debounceTimer);
             }
             if (this.audioContext) {
-                this.audioContext.close();
+                try { this.audioContext.close(); } catch (e) { }
             }
             this.log('Sound notifier destroyed', 'info');
         }
