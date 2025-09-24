@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tencent Yuanbao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.3.3
 // @description  Add URL query string search functionality for Tencent Yuanbao web version, q is for query
 // @match        https://yuanbao.tencent.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=yuanbao.tencent.com
@@ -90,9 +90,9 @@ if (savedQuery) {
     }
 
     const selectors = {
-        modelSwitch: 'button[dt-button-id="model_switch"]',
-        editor: '.ql-editor',
-        sendBtn: '.style__send-btn___ZsLmU'
+        modelSwitch: '[dt-button-id="model_switch"]',
+        editor: '.ql-editor[contenteditable="true"]',
+        sendBtn: '#yuanbao-send-btn'
     };
 
     const elements = await waitFor(() => {
@@ -111,13 +111,35 @@ if (savedQuery) {
     // Set model to DeepSeek
     button.setAttribute("dt-model-id", "deep_seek");
     button.setAttribute("dt-ext1", "deep_seek");
-    button.querySelector('span').textContent = "DeepSeek";
+    const label = button.querySelector('.t-button__text span, .t-button__text, span');
+    if (label) {
+        label.textContent = "DeepSeek";
+    }
 
     // Input query
     await delay(100);
     simulateInput(chat, query);
-    await delay(100);
-    simulateEnter(chat);
-    await delay(100);
-    simulateClick(sendBtn);
+    await delay(200);
+
+    const isDisabled = (elem) => {
+        if (!elem) {
+            return true;
+        }
+        const classList = elem.classList ? Array.from(elem.classList) : (elem.className || '').split(/\s+/);
+        const disabledAttr = elem.getAttribute('aria-disabled');
+        return elem.hasAttribute('disabled') || disabledAttr === 'true' || classList.some(cls => cls.includes('send-btn--disabled'));
+    };
+
+    let attempts = 0;
+    const maxAttempts = 120;
+    let currentSendBtn = sendBtn;
+    while (isDisabled(currentSendBtn) && attempts < maxAttempts) {
+        currentSendBtn = document.querySelector(selectors.sendBtn) || currentSendBtn;
+        await delay(100);
+        attempts++;
+    }
+
+    if (!isDisabled(currentSendBtn)) {
+        simulateClick(currentSendBtn);
+    }
 })();
