@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        ChatGPT play sound when finish generating
 // @namespace   http://tampermonkey.net/
-// @version     2.3
+// @version     2.5
 // @description Plays a custom chime when ChatGPT finishes generating responses (softer G-major arpeggio)
 // @match       https://chatgpt.com/*
 // @icon        https://www.google.com/s2/favicons?sz=64&domain=chatgpt.com
@@ -15,9 +15,9 @@
 
     // Configuration
     const CONFIG = {
-        volume: 0.25,                 // Master volume (0.0 - 1.0)
-        enableLogging: false,         // Set true to see logs in console
-        debounceDelay: 100,           // Debounce for DOM checks in ms
+        volume: 0.25,               // Master volume (0.0 - 1.0)
+        enableLogging: false,       // Set true to see logs in console
+        debounceDelay: 120,         // Debounce for DOM checks in ms (slightly larger for stability)
 
         // Softer, pleasant major arpeggio: G4, B4, D5, G5 (Hz)
         frequencies: [392.00, 493.88, 587.33, 783.99],
@@ -29,9 +29,17 @@
         noteGap: 30,
 
         // Multiple selectors to detect "generation in progress"
+        // Order matters: stop-button first (most reliable), then aria-label fallbacks, then weakest rules last.
         selectors: [
+            // 1) Most stable signal: Stop button appears only while generating
+            '#composer-submit-button[data-testid="stop-button"]',
             'button[data-testid="stop-button"]',
+
+            // 2) Fallbacks via aria-label (multi-language). Keep broad but secondary.
             'button[aria-label*="Stop"]',
+            'button[aria-label*="停止"]',
+
+            // 3) Weakest signal: disabled send button (UI changes often); keep last or remove if noisy
             '[data-testid="send-button"][disabled]'
         ]
     };
@@ -48,9 +56,9 @@
         }
 
         init() {
-            this.log('Initializing ChatGPT Sound Notifier v2.2', 'info');
             this.initAudioContext();
             this.setupMutationObserver();
+            this.setupUserGestureAudioResume(); // ensure audio resumes on first user interaction
             this.checkInitialState();
         }
 
@@ -66,6 +74,18 @@
             } catch (error) {
                 this.log(`Failed to initialize audio context: ${error.message}`, 'error');
             }
+        }
+
+        setupUserGestureAudioResume() {
+            // Some browsers require a user gesture to unlock audio. We resume once on first key/click.
+            const tryResume = () => {
+                if (!this.audioContext) return;
+                this.audioContext.resume().catch(() => { });
+                window.removeEventListener('keydown', tryResume, true);
+                window.removeEventListener('click', tryResume, true);
+            };
+            window.addEventListener('keydown', tryResume, true);
+            window.addEventListener('click', tryResume, true);
         }
 
         setupMutationObserver() {
@@ -86,7 +106,8 @@
                 childList: true,
                 subtree: true,
                 attributes: true,
-                attributeFilter: ['data-testid', 'aria-label', 'disabled']
+                // Track common attributes plus visibility-related flags to capture show/hide transitions reliably
+                attributeFilter: ['data-testid', 'aria-label', 'disabled', 'hidden', 'aria-hidden', 'style', 'class']
             });
             this.log('MutationObserver started', 'info');
         }
@@ -100,8 +121,9 @@
 
         checkGenerationState() {
             const now = Date.now();
-            if (now - this.lastStateChange < CONFIG.debounceDelay) {
-                return; // Prevent rapid state changes
+            // Avoid rapid flapping; rely mainly on debounce but keep a small guard window
+            if (now - this.lastStateChange < CONFIG.debounceDelay * 0.8) {
+                return;
             }
 
             const isCurrentlyGenerating = this.isGenerationActive();
@@ -121,26 +143,59 @@
             }
         }
 
+        // Utility: robust visibility check to avoid hidden/offscreen duplicates
+        isVisible(el) {
+            if (!el) return false;
+            // Fast path: offsetParent is null for display:none or position:fixed with no layout
+            if (el.offsetParent === null && el !== document.body) {
+                // Still allow certain positioned elements; fall back to computed style
+                const cs = getComputedStyle(el);
+                if (!cs) return false;
+                if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+            }
+            const cs = getComputedStyle(el);
+            if (!cs) return true;
+            if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+
+            // Also ensure none of the ancestors hide it via [hidden]/aria-hidden
+            let node = el;
+            while (node && node !== document) {
+                if (node.hasAttribute && (node.hasAttribute('hidden') || node.getAttribute('aria-hidden') === 'true')) {
+                    return false;
+                }
+                node = node.parentNode;
+            }
+            return true;
+        }
+
+        // Decide if generation is active
         isGenerationActive() {
-            // Try multiple selectors for better reliability
+            // 1) Strongest signal: visible stop button
             for (const selector of CONFIG.selectors) {
-                const element = document.querySelector(selector);
-                if (element) {
-                    // Check for stop button or disabled send button
-                    if (selector.includes('stop-button') || selector.includes('Stop')) {
+                const el = document.querySelector(selector);
+                if (el && this.isVisible(el)) {
+                    // Explicitly treat stop-related selectors as "generating"
+                    if (
+                        selector.includes('stop-button') ||
+                        selector.includes('Stop') ||
+                        selector.includes('停止')
+                    ) {
                         return true;
                     }
-                    if (selector.includes('send-button') && element.disabled) {
+                    // Disabled send button only counts if visible and actually disabled
+                    if (selector.includes('send-button') && el.disabled) {
                         return true;
                     }
                 }
             }
 
-            // Additional checks for generation indicators
-            const streamingElements = document.querySelectorAll('[data-message-id]');
-            for (const element of streamingElements) {
-                if (element.textContent.includes('...') ||
-                    element.querySelector('.result-streaming')) {
+            // 2) Secondary/legacy signals — keep weak and non-authoritative
+            // We do NOT return true here unless the node is visible.
+            const streamingNodes = document.querySelectorAll('[data-message-id]');
+            for (const node of streamingNodes) {
+                if (!this.isVisible(node)) continue;
+                // Historically there was a ".result-streaming" class; keep as a weak fallback
+                if (node.querySelector('.result-streaming')) {
                     return true;
                 }
             }
@@ -189,7 +244,7 @@
                     const durationSec = (CONFIG.durations[index] || 150) / 1000;
                     const gapSec = (CONFIG.noteGap || 0) / 1000;
 
-                    // Simple per-note scheduling
+                    // Per-note scheduling
                     osc.start(startTime);
                     osc.stop(startTime + durationSec);
 
@@ -227,7 +282,7 @@
                 clearTimeout(this.debounceTimer);
             }
             if (this.audioContext) {
-                try { this.audioContext.close(); } catch (e) { }
+                try { this.audioContext.close(); } catch (e) { /* noop */ }
             }
             this.log('Sound notifier destroyed', 'info');
         }
