@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tencent Yuanbao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.2.9
+// @version      1.3.0
 // @description  Add URL query string search functionality for Tencent Yuanbao web version, q is for query
 // @match        https://yuanbao.tencent.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=yuanbao.tencent.com
@@ -28,6 +28,33 @@ if (savedQuery) {
     sessionStorage.removeItem('yuanbao-query');
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const waitFor = (resolver, options = {}) => {
+        const { timeout = 10000, root = document } = options;
+        return new Promise(resolve => {
+            const initial = resolver();
+            if (initial) {
+                resolve(initial);
+                return;
+            }
+
+            const observerRoot = root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
+            const observer = new MutationObserver(() => {
+                const result = resolver();
+                if (result) {
+                    observer.disconnect();
+                    clearTimeout(timer);
+                    resolve(result);
+                }
+            });
+
+            observer.observe(observerRoot, { childList: true, subtree: true });
+
+            const timer = setTimeout(() => {
+                observer.disconnect();
+                resolve(null);
+            }, timeout);
+        });
+    };
 
     const simulateInput = (elem, text) => {
         elem.focus();
@@ -54,41 +81,32 @@ if (savedQuery) {
         elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     };
 
-    // Wait for elements to load
     const maxWaitTime = 10000;
-    const startTime = Date.now();
-    let button, chat, sendBtn;
 
-    // Wait for page to load
     if (document.readyState !== 'complete') {
         await new Promise(resolve => {
             window.addEventListener('load', resolve, { once: true });
         });
     }
 
-    // Wait for DOM to stabilize
-    let lastElementCount = 0;
-    let stableCount = 0;
-    while (stableCount < 3) {
-        const currentElementCount = document.querySelectorAll('*').length;
-        stableCount = currentElementCount === lastElementCount ? stableCount + 1 : 0;
-        lastElementCount = currentElementCount;
-        await delay(100);
-    }
+    const selectors = {
+        modelSwitch: 'button[dt-button-id="model_switch"]',
+        editor: '.ql-editor',
+        sendBtn: '.style__send-btn___ZsLmU'
+    };
 
-    // Find required elements
-    while (
-        (!(button = document.querySelector('button[dt-button-id="model_switch"]')) ||
-            !(chat = document.querySelector('.ql-editor')) ||
-            !(sendBtn = document.querySelector('.style__send-btn___ZsLmU'))) &&
-        Date.now() - startTime < maxWaitTime
-    ) {
-        await delay(100);
-    }
+    const elements = await waitFor(() => {
+        const button = document.querySelector(selectors.modelSwitch);
+        const chat = document.querySelector(selectors.editor);
+        const sendBtn = document.querySelector(selectors.sendBtn);
+        return button && chat && sendBtn ? { button, chat, sendBtn } : null;
+    }, { timeout: maxWaitTime });
 
-    if (!button || !chat || !sendBtn) {
+    if (!elements) {
         return;
     }
+
+    const { button, chat, sendBtn } = elements;
 
     // Set model to DeepSeek
     button.setAttribute("dt-model-id", "deep_seek");

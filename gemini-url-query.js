@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gemini query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0.3
+// @version      1.0.4
 // @description  Add URL query string search functionality for Gemini web version, q is for query
 // @match        https://gemini.google.com/app*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=gemini.google.com
@@ -43,6 +43,33 @@ try {
     'use strict';
 
     const delay = (ms) => new Promise(r => setTimeout(r, ms));
+    const waitFor = (resolver, options = {}) => {
+        const { timeout = 5000, root = document } = options;
+        return new Promise(resolve => {
+            const initial = resolver();
+            if (initial) {
+                resolve(initial);
+                return;
+            }
+
+            const observerRoot = root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
+            const observer = new MutationObserver(() => {
+                const value = resolver();
+                if (value) {
+                    observer.disconnect();
+                    clearTimeout(timer);
+                    resolve(value);
+                }
+            });
+
+            observer.observe(observerRoot, { childList: true, subtree: true });
+
+            const timer = setTimeout(() => {
+                observer.disconnect();
+                resolve(null);
+            }, timeout);
+        });
+    };
 
     // Insert text into Quill contenteditable
     const typeIntoEditor = async (elem, text) => {
@@ -106,21 +133,17 @@ try {
     const editorSelector = 'rich-textarea .ql-editor[contenteditable="true"][role="textbox"]';
     const btnSelector = 'div.send-button-container button[aria-label]';
 
-    let editor = document.querySelector(editorSelector);
-    let sendBtn = document.querySelector(btnSelector);
+    const found = await waitFor(() => {
+        const editor = document.querySelector(editorSelector);
+        const sendBtn = document.querySelector(btnSelector);
+        return editor && sendBtn ? { editor, sendBtn } : null;
+    });
 
-    // Short poll in case Angular mounts a tick later
-    const t0 = performance.now();
-    while ((!editor || !sendBtn) && performance.now() - t0 < 3000) {
-        if (!editor) editor = document.querySelector(editorSelector);
-        if (!sendBtn) sendBtn = document.querySelector(btnSelector);
-        await delay(100);
-    }
-
-    if (!editor || !sendBtn) {
-        E('Editor or Send button not found.', { editor, sendBtn });
+    if (!found) {
+        E('Editor or Send button not found.');
         return;
     }
+    let { editor, sendBtn } = found;
     L('Found editor and button.');
 
     // Inject and send
@@ -141,6 +164,7 @@ try {
 
     // If still not clear, check button state and click only if it still looks like Send
     if (!sent) {
+        sendBtn = document.querySelector(btnSelector) || sendBtn;
         const st = buttonState(sendBtn);
         L('Post-Enter button state:', st);
         if (st.isSend && !st.disabled) {

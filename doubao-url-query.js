@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Doubao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0.1
+// @version      1.0.2
 // @description  Add URL query string search functionality for Doubao web version, q is for query
 // @match        https://www.doubao.com/chat/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=doubao.com
@@ -20,8 +20,34 @@ if (savedQuery) {
 (async () => {
     'use strict';
 
-
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const waitFor = (resolver, options = {}) => {
+        const { timeout = 10000, root = document } = options;
+        return new Promise(resolve => {
+            const initial = resolver();
+            if (initial) {
+                resolve(initial);
+                return;
+            }
+
+            const observerRoot = root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
+            const observer = new MutationObserver(() => {
+                const result = resolver();
+                if (result) {
+                    observer.disconnect();
+                    clearTimeout(timer);
+                    resolve(result);
+                }
+            });
+
+            observer.observe(observerRoot, { childList: true, subtree: true });
+
+            const timer = setTimeout(() => {
+                observer.disconnect();
+                resolve(null);
+            }, timeout);
+        });
+    };
 
     const simulateInput = async (elem, text) => {
 
@@ -66,40 +92,30 @@ if (savedQuery) {
     }
     sessionStorage.removeItem('doubao-query');
 
-    // Wait for elements to load
     const maxWaitTime = 10000;
-    const startTime = Date.now();
-    let textarea, sendBtn;
 
-    // Wait for page to load
     if (document.readyState !== 'complete') {
         await new Promise(resolve => {
             window.addEventListener('load', resolve, { once: true });
         });
     }
 
-    // Wait for DOM to stabilize
-    let lastElementCount = 0;
-    let stableCount = 0;
-    while (stableCount < 3) {
-        const currentElementCount = document.querySelectorAll('*').length;
-        stableCount = currentElementCount === lastElementCount ? stableCount + 1 : 0;
-        lastElementCount = currentElementCount;
-        await delay(100);
-    }
+    const selectors = {
+        input: 'textarea[data-testid="chat_input_input"]',
+        send: 'button[data-testid="chat_input_send_button"]'
+    };
 
-    // Find required elements
-    while (
-        (!(textarea = document.querySelector('textarea[data-testid="chat_input_input"]')) ||
-            !(sendBtn = document.querySelector('button[data-testid="chat_input_send_button"]'))) &&
-        Date.now() - startTime < maxWaitTime
-    ) {
-        await delay(100);
-    }
+    const elements = await waitFor(() => {
+        const textarea = document.querySelector(selectors.input);
+        const sendBtn = document.querySelector(selectors.send);
+        return textarea && sendBtn ? { textarea, sendBtn } : null;
+    }, { timeout: maxWaitTime });
 
-    if (!textarea || !sendBtn) {
+    if (!elements) {
         return;
     }
+
+    const { textarea, sendBtn } = elements;
 
     // Input query
     await delay(100);
@@ -111,12 +127,23 @@ if (savedQuery) {
     // Wait for send button to be enabled
     let attempts = 0;
     const maxAttempts = 50; // 5 seconds
-    while (sendBtn.disabled && attempts < maxAttempts) {
+    let currentSendBtn = sendBtn;
+    const observer = new MutationObserver(() => {
+        const replacement = document.querySelector(selectors.send);
+        if (replacement) {
+            currentSendBtn = replacement;
+        }
+    });
+    observer.observe(currentSendBtn.parentNode || document.body, { childList: true, subtree: true });
+
+    while (currentSendBtn.disabled && attempts < maxAttempts) {
         await delay(100);
         attempts++;
     }
 
-    if (!sendBtn.disabled) {
-        simulateClick(sendBtn);
+    observer.disconnect();
+
+    if (!currentSendBtn.disabled) {
+        simulateClick(currentSendBtn);
     }
 })();
