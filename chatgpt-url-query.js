@@ -17,6 +17,7 @@ const STORAGE_KEY = 'chatgpt-url-query';
 
 const immediateQuery = new URLSearchParams(window.location.search).get(QUERY_KEY);
 if (immediateQuery) {
+    // Preserve the query across redirects or SPA reload before the UI is ready.
     sessionStorage.setItem(STORAGE_KEY, immediateQuery);
 }
 
@@ -31,7 +32,9 @@ if (immediateQuery) {
     const SEND_POLL_DELAY = 80;
 
     const waitFor = (resolverOrSelector, options = {}) => {
-        const { timeout = 15000, root = document } = options;
+        // Resolves when the selector matches, retrying on DOM mutations until timeout.
+        // Accepts either a selector string or a resolver function that returns a node.
+        const { timeout = 5000, root = document } = options;
         const resolver = typeof resolverOrSelector === 'function'
             ? resolverOrSelector
             : () => root.querySelector(resolverOrSelector);
@@ -81,6 +84,7 @@ if (immediateQuery) {
     };
 
     const dispatchInputEvents = (elem) => {
+        // Fire the same events the UI would emit so React/ProseMirror update state.
         const payload = elem.isContentEditable ? elem.textContent : elem.value;
         try {
             elem.dispatchEvent(new InputEvent('input', { bubbles: true, data: payload || '' }));
@@ -91,6 +95,7 @@ if (immediateQuery) {
     };
 
     const clearComposer = (elem) => {
+        // Remove any pre-filled text while keeping framework state in sync.
         elem.focus();
         if (elem.isContentEditable) {
             if (!safeExecCommand('selectAll')) {
@@ -114,6 +119,8 @@ if (immediateQuery) {
     };
 
     const populateComposer = (elem, text) => {
+        // Works for both contenteditable rich editors and plain textareas.
+        // Prefer execCommand to let the host editor handle insertion.
         elem.focus();
         if (elem.isContentEditable) {
             if (!safeExecCommand('insertText', text)) {
@@ -155,6 +162,7 @@ if (immediateQuery) {
     };
 
     const findComposer = () => {
+        // Try the current ChatGPT rich editor first, then fall back to legacy textareas.
         const preferRich = document.querySelector('#prompt-textarea[contenteditable="true"]');
         if (preferRich && isVisible(preferRich)) {
             return { node: preferRich, type: 'rich' };
@@ -179,6 +187,7 @@ if (immediateQuery) {
     const query = queryFromStorage || queryFromUrl;
 
     if (!query) {
+        // Nothing to do if neither storage nor URL held a query.
         return;
     }
 
@@ -186,6 +195,7 @@ if (immediateQuery) {
 
     const cleanedUrl = new URL(window.location.href);
     if (cleanedUrl.searchParams.has(QUERY_KEY)) {
+        // Remove the transient query param so the URL stays clean after submission.
         cleanedUrl.searchParams.delete(QUERY_KEY);
         window.history.replaceState({}, document.title, cleanedUrl.toString());
     }
@@ -196,17 +206,20 @@ if (immediateQuery) {
         });
     }
 
+    // Broad selectors to survive UI changes; first matching button is used.
     const selectors = {
         send: 'button[data-testid="composer-send-button"], button[data-testid="send-button"], form[data-type="unified-composer"] button[type="submit"], button[aria-label="Send"], button[aria-label="Send prompt"]'
     };
 
     const composerInfo = await waitFor(findComposer, { timeout: 20000 });
     if (!composerInfo) {
+        // Do not hang forever—silently exit so the page works normally.
         return;
     }
 
     let composerNode = composerInfo.node;
     if (composerInfo.type === 'rich-hidden') {
+        // Some layouts hide the rich composer at first; wait briefly then retry.
         await delay(HIDDEN_COMPOSER_DELAY);
         const retryInfo = findComposer();
         if (retryInfo && retryInfo.type !== 'rich-hidden') {
@@ -225,6 +238,7 @@ if (immediateQuery) {
     const sendButton = await waitFor(selectors.send, { timeout: 5000 });
     if (sendButton) {
         let currentSendButton = sendButton;
+        // Button nodes can be replaced mid-conversation; observe and keep the latest reference.
         const observer = new MutationObserver(() => {
             const replacement = document.querySelector(selectors.send);
             if (replacement) {
@@ -236,6 +250,7 @@ if (immediateQuery) {
         let attempts = 0;
         const maxAttempts = 50;
         while (isDisabled(currentSendButton) && attempts < maxAttempts) {
+            // Wait for ChatGPT to finish debouncing/validating before clicking.
             await delay(SEND_POLL_DELAY);
             attempts++;
         }

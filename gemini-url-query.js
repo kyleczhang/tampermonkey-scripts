@@ -44,6 +44,7 @@ try {
 
     const delay = (ms) => new Promise(r => setTimeout(r, ms));
     const waitFor = (resolver, options = {}) => {
+        // Resolve when resolver returns truthy, watching DOM mutations up to timeout.
         const { timeout = 5000, root = document } = options;
         return new Promise(resolve => {
             const initial = resolver();
@@ -73,6 +74,7 @@ try {
 
     // Insert text into Quill contenteditable
     const typeIntoEditor = async (elem, text) => {
+        // Clear existing content first; Gemini sometimes seeds a placeholder.
         elem.focus();
         try { elem.innerHTML = ''; } catch { }
         try {
@@ -88,6 +90,7 @@ try {
             W('execCommand failed, falling back:', err);
             elem.textContent = text;
         }
+        // Trigger Quill/react input handlers so UI state reflects the new text.
         try {
             elem.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
         } catch { }
@@ -96,12 +99,14 @@ try {
     };
 
     const pressEnter = (elem) => {
+        // Gemini sends on Enter; mimic real key sequence to trigger handlers.
         elem.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
         elem.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
         elem.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
     };
 
     const buttonState = (btn) => {
+        // Determine whether the button is currently a Send or Stop button.
         const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
         const icon = btn.querySelector('mat-icon, [data-mat-icon-name]');
         const iconName = (icon && (icon.getAttribute('data-mat-icon-name') || icon.getAttribute('fonticon') || icon.textContent || '')).toLowerCase();
@@ -119,6 +124,7 @@ try {
         L('No query found in sessionStorage or URL. Exiting.');
         return;
     }
+    // Clear storage immediately to avoid resubmitting on refresh.
     sessionStorage.removeItem('gemini-query');
     L('Using query:', query);
 
