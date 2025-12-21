@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gemini query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0.4
+// @version      1.0.5
 // @description  Add URL query string search functionality for Gemini web version, q is for query
 // @match        https://gemini.google.com/app*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=gemini.google.com

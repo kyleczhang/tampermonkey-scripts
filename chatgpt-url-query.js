@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.3.1
+// @version      2.3.5
 // @description  Submit ChatGPT prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -14,6 +14,12 @@
 
 const QUERY_KEY = 'cq';
 const STORAGE_KEY = 'chatgpt-url-query';
+const SEND_SELECTOR = 'button[data-testid="composer-send-button"], button[data-testid="send-button"], form[data-type="unified-composer"] button[type="submit"], button[aria-label="Send"], button[aria-label="Send prompt"]';
+const COMPOSER_SELECTORS = [
+    '#prompt-textarea[contenteditable="true"]',
+    '.ProseMirror[contenteditable="true"]',
+    'textarea[name="prompt-textarea"]'
+];
 
 const immediateQuery = new URLSearchParams(window.location.search).get(QUERY_KEY);
 if (immediateQuery) {
@@ -24,11 +30,15 @@ if (immediateQuery) {
 (async () => {
     'use strict';
 
+    /**
+     * Overall flow:
+     * - Load and stash the query before SPA routing.
+     * - Wait for the composer + send button to exist.
+     * - Replace composer text, dispatch input events, then attempt to send.
+     * - Prefer clicking Send; fall back to Enter if unavailable/disabled.
+     */
+
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    const BEFORE_CLEAR_DELAY = 30;
-    const BEFORE_POPULATE_DELAY = 20;
-    const BEFORE_SUBMIT_DELAY = 100;
-    const HIDDEN_COMPOSER_DELAY = 200;
     const SEND_POLL_DELAY = 80;
 
     const waitFor = (resolverOrSelector, options = {}) => {
@@ -56,31 +66,13 @@ if (immediateQuery) {
                 }
             });
 
-            observer.observe(observerRoot, { childList: true, subtree: true });
+            observer.observe(observerRoot, { childList: true, subtree: true, attributes: true });
 
             const timer = setTimeout(() => {
                 observer.disconnect();
                 resolve(null);
             }, timeout);
         });
-    };
-
-    const safeExecCommand = (command, value) => {
-        try {
-            return document.execCommand(command, false, value);
-        } catch (error) {
-            return false;
-        }
-    };
-
-    const getNativeValueSetter = (element) => {
-        if (element instanceof HTMLTextAreaElement) {
-            return Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-        }
-        if (element instanceof HTMLInputElement) {
-            return Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        }
-        return null;
     };
 
     const dispatchInputEvents = (elem) => {
@@ -94,48 +86,20 @@ if (immediateQuery) {
         elem.dispatchEvent(new Event('change', { bubbles: true }));
     };
 
-    const clearComposer = (elem) => {
-        // Remove any pre-filled text while keeping framework state in sync.
+    const setComposerText = (elem, text) => {
+        // Clear then insert text in either a rich editor or a textarea.
         elem.focus();
-        if (elem.isContentEditable) {
-            if (!safeExecCommand('selectAll')) {
-                const selection = window.getSelection();
-                selection?.removeAllRanges();
-                const range = document.createRange();
-                range.selectNodeContents(elem);
-                selection?.addRange(range);
-            }
-            safeExecCommand('delete');
-            elem.textContent = '';
-        } else {
-            const setter = getNativeValueSetter(elem);
-            if (setter) {
-                setter.call(elem, '');
-            } else if ('value' in elem) {
-                elem.value = '';
-            }
-        }
-        dispatchInputEvents(elem);
-    };
 
-    const populateComposer = (elem, text) => {
-        // Works for both contenteditable rich editors and plain textareas.
-        // Prefer execCommand to let the host editor handle insertion.
-        elem.focus();
         if (elem.isContentEditable) {
-            if (!safeExecCommand('insertText', text)) {
-                elem.textContent = text;
-            }
+            try { document.execCommand('selectAll'); document.execCommand('delete'); } catch (_) { elem.textContent = ''; }
+            try { if (!document.execCommand('insertText', false, text)) elem.textContent = text; } catch (_) { elem.textContent = text; }
+        } else if ('value' in elem) {
+            elem.value = '';
+            elem.value = text;
         } else {
-            const setter = getNativeValueSetter(elem);
-            if (setter) {
-                setter.call(elem, text);
-            } else if ('value' in elem) {
-                elem.value = text;
-            } else {
-                elem.textContent = text;
-            }
+            elem.textContent = text;
         }
+
         dispatchInputEvents(elem);
     };
 
@@ -162,22 +126,10 @@ if (immediateQuery) {
     };
 
     const findComposer = () => {
-        // Try the current ChatGPT rich editor first, then fall back to legacy textareas.
-        const preferRich = document.querySelector('#prompt-textarea[contenteditable="true"]');
-        if (preferRich && isVisible(preferRich)) {
-            return { node: preferRich, type: 'rich' };
-        }
-        const otherRich = Array.from(document.querySelectorAll('.ProseMirror[contenteditable="true"]')).find(isVisible);
-        if (otherRich) {
-            return { node: otherRich, type: 'rich' };
-        }
-        const textareas = Array.from(document.querySelectorAll('textarea[name="prompt-textarea"]'));
-        const visibleTextarea = textareas.find(isVisible);
-        if (visibleTextarea) {
-            return { node: visibleTextarea, type: 'textarea' };
-        }
-        if (preferRich) {
-            return { node: preferRich, type: 'rich-hidden' };
+        // Prefer current rich editor, then any other contenteditable, then textarea.
+        for (const selector of COMPOSER_SELECTORS) {
+            const node = document.querySelector(selector);
+            if (node && isVisible(node)) return node;
         }
         return null;
     };
@@ -206,62 +158,29 @@ if (immediateQuery) {
         });
     }
 
-    // Broad selectors to survive UI changes; first matching button is used.
-    const selectors = {
-        send: 'button[data-testid="composer-send-button"], button[data-testid="send-button"], form[data-type="unified-composer"] button[type="submit"], button[aria-label="Send"], button[aria-label="Send prompt"]'
-    };
-
-    const composerInfo = await waitFor(findComposer, { timeout: 20000 });
-    if (!composerInfo) {
+    const composer = await waitFor(findComposer, { timeout: 20000 });
+    if (!composer) {
         // Do not hang forever—silently exit so the page works normally.
         return;
     }
 
-    let composerNode = composerInfo.node;
-    if (composerInfo.type === 'rich-hidden') {
-        // Some layouts hide the rich composer at first; wait briefly then retry.
-        await delay(HIDDEN_COMPOSER_DELAY);
-        const retryInfo = findComposer();
-        if (retryInfo && retryInfo.type !== 'rich-hidden') {
-            composerNode = retryInfo.node;
-        }
-    }
+    setComposerText(composer, query);
+    await delay(120);
 
-    const targetComposer = composerNode;
-
-    await delay(BEFORE_CLEAR_DELAY);
-    clearComposer(targetComposer);
-    await delay(BEFORE_POPULATE_DELAY);
-    populateComposer(targetComposer, query);
-    await delay(BEFORE_SUBMIT_DELAY);
-
-    const sendButton = await waitFor(selectors.send, { timeout: 5000 });
+    const sendButton = await waitFor(SEND_SELECTOR, { timeout: 5000 });
     if (sendButton) {
-        let currentSendButton = sendButton;
-        // Button nodes can be replaced mid-conversation; observe and keep the latest reference.
-        const observer = new MutationObserver(() => {
-            const replacement = document.querySelector(selectors.send);
-            if (replacement) {
-                currentSendButton = replacement;
-            }
-        });
-        observer.observe(currentSendButton.parentNode || document.body, { childList: true, subtree: true });
-
-        let attempts = 0;
-        const maxAttempts = 50;
-        while (isDisabled(currentSendButton) && attempts < maxAttempts) {
-            // Wait for ChatGPT to finish debouncing/validating before clicking.
+        // Wait briefly for ChatGPT debounce/validation to enable the button.
+        let current = sendButton;
+        for (let i = 0; i < 40 && isDisabled(current); i++) {
             await delay(SEND_POLL_DELAY);
-            attempts++;
+            current = document.querySelector(SEND_SELECTOR) || current;
         }
 
-        observer.disconnect();
-
-        if (!isDisabled(currentSendButton)) {
-            simulateClick(currentSendButton);
+        if (!isDisabled(current)) {
+            simulateClick(current);
             return;
         }
     }
 
-    simulateEnter(targetComposer);
+    simulateEnter(composer);
 })();
