@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Doubao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0.2
+// @version      1.0.4
 // @description  Add URL query string search functionality for Doubao web version, q is for query
 // @match        https://www.doubao.com/chat/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=doubao.com
@@ -72,17 +72,18 @@ if (savedQuery) {
 
     };
 
-    const simulateEnter = (elem) => {
-        elem.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-        elem.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-        elem.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-    };
-
     const simulateClick = (elem) => {
         elem.focus();
         elem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
         elem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
         elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    };
+
+    const simulateEnter = (elem) => {
+        const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+        elem.dispatchEvent(new KeyboardEvent('keydown', opts));
+        elem.dispatchEvent(new KeyboardEvent('keypress', opts));
+        elem.dispatchEvent(new KeyboardEvent('keyup', opts));
     };
 
     // Get query from storage or URL
@@ -105,45 +106,59 @@ if (savedQuery) {
         send: 'button[data-testid="chat_input_send_button"]'
     };
 
-    const elements = await waitFor(() => {
-        const textarea = document.querySelector(selectors.input);
-        const sendBtn = document.querySelector(selectors.send);
-        return textarea && sendBtn ? { textarea, sendBtn } : null;
-    }, { timeout: maxWaitTime });
-
-    if (!elements) {
+    // Doubao now renders the send button only after text exists, so wait for the input first.
+    const textarea = await waitFor(() => document.querySelector(selectors.input), { timeout: maxWaitTime });
+    if (!textarea) {
         return;
     }
-
-    const { textarea, sendBtn } = elements;
 
     // Input query
     await delay(100);
     await simulateInput(textarea, query);
     await delay(500); // Give more time for UI to react
-    simulateEnter(textarea);
-    await delay(100);
 
-    // Wait for send button to be enabled
-    let attempts = 0;
-    const maxAttempts = 50; // 5 seconds
-    let currentSendBtn = sendBtn;
+    // Fast path: try sending via Enter
+    simulateEnter(textarea);
+    await delay(200);
+    if (!textarea.value || textarea.value.trim().length === 0) {
+        return;
+    }
+
+    // Wait for send button to appear after input shows up
+    let currentSendBtn = await waitFor(() => document.querySelector(selectors.send), { timeout: maxWaitTime });
+    if (!currentSendBtn) {
+        return;
+    }
+
+    const isDisabled = (btn) => {
+        if (!btn) return true;
+        if (btn.disabled) return true;
+        const ariaDisabled = btn.getAttribute('aria-disabled');
+        if (ariaDisabled && ariaDisabled !== 'false') return true;
+        const dataDisabled = btn.getAttribute('data-disabled');
+        return dataDisabled && dataDisabled !== 'false';
+    };
+
+    // Track possible re-render of the send button
     const observer = new MutationObserver(() => {
         const replacement = document.querySelector(selectors.send);
         if (replacement) {
             currentSendBtn = replacement;
         }
     });
-    observer.observe(currentSendBtn.parentNode || document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true });
 
-    while (currentSendBtn.disabled && attempts < maxAttempts) {
+    // Wait for send button to be enabled
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds
+    while (isDisabled(currentSendBtn) && attempts < maxAttempts) {
         await delay(100);
         attempts++;
     }
 
     observer.disconnect();
 
-    if (!currentSendBtn.disabled) {
+    if (!isDisabled(currentSendBtn)) {
         simulateClick(currentSendBtn);
     }
 })();
