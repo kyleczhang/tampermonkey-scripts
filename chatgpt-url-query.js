@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.4.1
+// @version      2.7.1
 // @description  Submit ChatGPT prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -14,6 +14,7 @@
 
 const QUERY_KEY = 'cq';
 const STORAGE_KEY = 'chatgpt-url-query';
+const LOG_PREFIX = '[ChatGPT URL Query]';
 const SEND_SELECTOR = 'button[data-testid="composer-send-button"], button[data-testid="send-button"], form[data-type="unified-composer"] button[type="submit"], button[aria-label="Send"], button[aria-label="Send prompt"]';
 const COMPOSER_SELECTORS = [
     '#prompt-textarea[contenteditable="true"]',
@@ -24,6 +25,7 @@ const COMPOSER_SELECTORS = [
 const immediateQuery = new URLSearchParams(window.location.search).get(QUERY_KEY);
 if (immediateQuery) {
     // Preserve the query across redirects or SPA reload before the UI is ready.
+    console.log(LOG_PREFIX, 'Query found in URL, storing:', immediateQuery);
     sessionStorage.setItem(STORAGE_KEY, immediateQuery);
 }
 
@@ -163,8 +165,11 @@ if (immediateQuery) {
 
     if (!query) {
         // Nothing to do if neither storage nor URL held a query.
+        console.log(LOG_PREFIX, 'No query found, exiting');
         return;
     }
+
+    console.log(LOG_PREFIX, 'Processing query:', query);
 
     sessionStorage.removeItem(STORAGE_KEY);
 
@@ -182,14 +187,18 @@ if (immediateQuery) {
     }
 
     // STEP 1: Wait for composer and fill it ASAP (don't wait for button)
+    console.log(LOG_PREFIX, 'Waiting for composer...');
     const composer = await waitFor(findComposer, { timeout: 20000 });
     if (!composer) {
         // Do not hang forever—silently exit so the page works normally.
+        console.log(LOG_PREFIX, 'Composer not found, exiting');
         return;
     }
 
+    console.log(LOG_PREFIX, 'Composer found, filling text');
     setComposerText(composer, query);
     await delay(80);
+    console.log(LOG_PREFIX, 'Text filled, waiting for send button to become ready');
 
     // STEP 2: Now wait for the send button to become enabled and ready
     // The button transitions: disabled → voice mode → enabled send button
@@ -200,27 +209,35 @@ if (immediateQuery) {
 
     if (!readySendButton) {
         // If button never becomes ready, try Enter key as fallback
+        console.log(LOG_PREFIX, 'Send button never became ready, trying Enter key as fallback');
         composer.focus();
         await delay(50);
         simulateEnter(composer);
         return;
     }
 
+    console.log(LOG_PREFIX, 'Send button is ready');
+
     // STEP 3: Button is ready, give ChatGPT's validation a moment to settle
     await delay(100);
 
     // Re-find and focus composer (DOM might have updated)
     const activeComposer = findComposer() || composer;
+    console.log(LOG_PREFIX, 'Focusing composer and attempting to send');
     activeComposer.focus();
     await delay(50);
 
     // Try Enter key first (preferred method)
+    console.log(LOG_PREFIX, 'Simulating Enter key press');
     simulateEnter(activeComposer);
 
     // If Enter didn't work after a short wait, click the button as backup
     await delay(200);
     const finalButton = document.querySelector(SEND_SELECTOR);
     if (finalButton && isSendButtonReady(finalButton)) {
+        console.log(LOG_PREFIX, 'Enter key might not have worked, clicking send button as backup');
         simulateClick(finalButton);
+    } else {
+        console.log(LOG_PREFIX, 'Send attempt completed');
     }
 })();
