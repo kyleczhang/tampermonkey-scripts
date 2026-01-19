@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.3.5
+// @version      2.3.6
 // @description  Submit ChatGPT prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -42,8 +42,8 @@ if (immediateQuery) {
     const SEND_POLL_DELAY = 80;
 
     const waitFor = (resolverOrSelector, options = {}) => {
-        // Resolves when the selector matches, retrying on DOM mutations until timeout.
-        // Accepts either a selector string or a resolver function that returns a node.
+        // Resolves when the selector matches, checking on mutations AND polling.
+        // Polling ensures we catch elements that exist but are settling from animations.
         const { timeout = 5000, root = document } = options;
         const resolver = typeof resolverOrSelector === 'function'
             ? resolverOrSelector
@@ -56,21 +56,33 @@ if (immediateQuery) {
                 return;
             }
 
-            const observerRoot = root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
-            const observer = new MutationObserver(() => {
+            let resolved = false;
+            const checkAndResolve = () => {
+                if (resolved) return;
                 const result = resolver();
                 if (result) {
+                    resolved = true;
                     observer.disconnect();
                     clearTimeout(timer);
+                    clearInterval(pollInterval);
                     resolve(result);
                 }
-            });
+            };
 
+            const observerRoot = root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
+            const observer = new MutationObserver(checkAndResolve);
             observer.observe(observerRoot, { childList: true, subtree: true, attributes: true });
 
+            // Poll every 100ms to catch visibility changes not captured by MutationObserver
+            const pollInterval = setInterval(checkAndResolve, 100);
+
             const timer = setTimeout(() => {
-                observer.disconnect();
-                resolve(null);
+                if (!resolved) {
+                    resolved = true;
+                    observer.disconnect();
+                    clearInterval(pollInterval);
+                    resolve(null);
+                }
             }, timeout);
         });
     };
