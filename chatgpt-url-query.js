@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.3.6
+// @version      2.4.0
 // @description  Submit ChatGPT prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -33,13 +33,13 @@ if (immediateQuery) {
     /**
      * Overall flow:
      * - Load and stash the query before SPA routing.
-     * - Wait for the composer + send button to exist.
-     * - Replace composer text, dispatch input events, then attempt to send.
-     * - Prefer clicking Send; fall back to Enter if unavailable/disabled.
+     * - Fill the textarea ASAP when it appears (don't wait for button).
+     * - After filling, wait for the enabled Send button to appear.
+     * - Prefer Enter key for sending; fall back to clicking if needed.
      */
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    const SEND_POLL_DELAY = 80;
+    const SEND_POLL_DELAY = 50;
 
     const waitFor = (resolverOrSelector, options = {}) => {
         // Resolves when the selector matches, checking on mutations AND polling.
@@ -73,8 +73,8 @@ if (immediateQuery) {
             const observer = new MutationObserver(checkAndResolve);
             observer.observe(observerRoot, { childList: true, subtree: true, attributes: true });
 
-            // Poll every 100ms to catch visibility changes not captured by MutationObserver
-            const pollInterval = setInterval(checkAndResolve, 100);
+            // Poll every 50ms for fast detection of changes
+            const pollInterval = setInterval(checkAndResolve, 50);
 
             const timer = setTimeout(() => {
                 if (!resolved) {
@@ -146,6 +146,17 @@ if (immediateQuery) {
         return null;
     };
 
+    const isSendButtonReady = (button) => {
+        // The send button is ready when it's:
+        // 1. Not disabled
+        // 2. Has send-button test id (not voice mode button)
+        // 3. aria-label contains "Send"
+        if (!button || isDisabled(button)) return false;
+        const testId = button.getAttribute('data-testid');
+        const ariaLabel = button.getAttribute('aria-label');
+        return testId === 'send-button' && ariaLabel && ariaLabel.toLowerCase().includes('send');
+    };
+
     const queryFromStorage = sessionStorage.getItem(STORAGE_KEY);
     const queryFromUrl = new URLSearchParams(window.location.search).get(QUERY_KEY);
     const query = queryFromStorage || queryFromUrl;
@@ -170,6 +181,7 @@ if (immediateQuery) {
         });
     }
 
+    // STEP 1: Wait for composer and fill it ASAP (don't wait for button)
     const composer = await waitFor(findComposer, { timeout: 20000 });
     if (!composer) {
         // Do not hang forever—silently exit so the page works normally.
@@ -177,22 +189,21 @@ if (immediateQuery) {
     }
 
     setComposerText(composer, query);
-    await delay(120);
+    await delay(80);
 
-    const sendButton = await waitFor(SEND_SELECTOR, { timeout: 5000 });
-    if (sendButton) {
-        // Wait briefly for ChatGPT debounce/validation to enable the button.
-        let current = sendButton;
-        for (let i = 0; i < 40 && isDisabled(current); i++) {
-            await delay(SEND_POLL_DELAY);
-            current = document.querySelector(SEND_SELECTOR) || current;
-        }
+    // STEP 2: Now wait for the send button to become enabled and ready
+    // The button transitions: disabled → voice mode → enabled send button
+    const readySendButton = await waitFor(() => {
+        const btn = document.querySelector(SEND_SELECTOR);
+        return isSendButtonReady(btn) ? btn : null;
+    }, { timeout: 15000 });
 
-        if (!isDisabled(current)) {
-            simulateClick(current);
-            return;
-        }
+    if (!readySendButton) {
+        // If button never becomes ready, try Enter key as fallback
+        simulateEnter(composer);
+        return;
     }
 
+    // STEP 3: Button is ready, prefer Enter key (more reliable)
     simulateEnter(composer);
 })();
