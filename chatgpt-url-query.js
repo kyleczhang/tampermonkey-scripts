@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.4.0
+// @version      2.4.1
 // @description  Submit ChatGPT prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -200,10 +200,27 @@ if (immediateQuery) {
 
     if (!readySendButton) {
         // If button never becomes ready, try Enter key as fallback
+        composer.focus();
+        await delay(50);
         simulateEnter(composer);
         return;
     }
 
-    // STEP 3: Button is ready, prefer Enter key (more reliable)
-    simulateEnter(composer);
+    // STEP 3: Button is ready, give ChatGPT's validation a moment to settle
+    await delay(100);
+
+    // Re-find and focus composer (DOM might have updated)
+    const activeComposer = findComposer() || composer;
+    activeComposer.focus();
+    await delay(50);
+
+    // Try Enter key first (preferred method)
+    simulateEnter(activeComposer);
+
+    // If Enter didn't work after a short wait, click the button as backup
+    await delay(200);
+    const finalButton = document.querySelector(SEND_SELECTOR);
+    if (finalButton && isSendButtonReady(finalButton)) {
+        simulateClick(finalButton);
+    }
 })();
