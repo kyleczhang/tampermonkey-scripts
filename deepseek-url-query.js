@@ -1,123 +1,215 @@
 // ==UserScript==
 // @name         DeepSeek query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
-// @description  Add URL query string search functionality for DeepSeek web version, q is for query, r for DeepThink
+// @version      1.2.1
+// @description  Submit DeepSeek prompts via ?cq= query parameter
 // @match        https://chat.deepseek.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=deepseek.com
 // @license      MIT
 // @grant        none
 // @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
 // @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/deepseek-url-query.js
-// @run-at       document-end
+// @run-at       document-start
 // ==/UserScript==
 
-(function () {
+const QUERY_KEY = 'cq';
+const STORAGE_QUERY_KEY = 'deepseek-url-query-cq';
+const LOG_PREFIX = '[DeepSeek URL Query]';
+const COMPOSER_SELECTORS = [
+    'textarea#chat-input',
+    'textarea[placeholder="Message DeepSeek"]',
+    'textarea.ds-scroll-area',
+    'textarea'
+];
+
+const immediateParams = new URLSearchParams(window.location.search);
+const immediateQuery = immediateParams.get(QUERY_KEY);
+
+if (immediateQuery) {
+    // Preserve the query across redirects or SPA transitions.
+    sessionStorage.setItem(STORAGE_QUERY_KEY, immediateQuery);
+    console.log(LOG_PREFIX, 'Query found in URL and cached');
+}
+
+(async () => {
     'use strict';
 
-    // Parse URL parameters
-    function getQueryParam(name) {
-        const params = new URLSearchParams(window.location.search);
-        return params.get(name);
-    }
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    // Find button by text
-    function findButtonByText(text) {
-        const xpath = `//div[@role='button']//span[contains(text(), '${text}')]`;
-        const result = document.evaluate(
-            xpath,
-            document,
-            null,
-            XPathResult.FIRST_ORDERED_NODE_TYPE,
-            null
-        );
-        return result.singleNodeValue?.closest('div[role="button"]');
-    }
+    const waitFor = (resolverOrSelector, options = {}) => {
+        const { timeout = 15000, root = document } = options;
+        const resolver = typeof resolverOrSelector === 'function'
+            ? resolverOrSelector
+            : () => root.querySelector(resolverOrSelector);
 
-    // Check if the button is active
-    function isButtonActive(button) {
-        return getComputedStyle(button)
-            .getPropertyValue('--ds-button-color')
-            .includes('77, 107, 254');
-    }
+        return new Promise((resolve) => {
+            const initial = resolver();
+            if (initial) {
+                resolve(initial);
+                return;
+            }
 
-    // Trigger React's input event
-    function setReactInputValue(element, value) {
-        const inputEvent = new Event('input', { bubbles: true, composed: true });
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype,
-            'value'
-        ).set;
-        nativeInputValueSetter.call(element, value);
-        element.dispatchEvent(inputEvent);
-    }
+            let settled = false;
+            const finish = (value) => {
+                if (settled) return;
+                settled = true;
+                observer.disconnect();
+                clearTimeout(timer);
+                clearInterval(poller);
+                resolve(value);
+            };
 
-    // Toggle mode (activate or deactivate) based on shouldEnable flag
-    async function toggleMode(button, shouldEnable) {
-        if (!button) return;
-        const isActive = isButtonActive(button);
-        if (shouldEnable && !isActive) {
-            button.click();
-            await new Promise((r) => setTimeout(r, 200));
-        }
-        if (!shouldEnable && isActive) {
-            button.click();
-            await new Promise((r) => setTimeout(r, 200));
-        }
-    }
+            const check = () => {
+                const result = resolver();
+                if (result) finish(result);
+            };
 
-    // Main function to process URL query parameters
-    async function processQueryParams() {
-        const qParam = getQueryParam('q');
-        const query = qParam ? decodeURIComponent(qParam) : '';
-        const needDeepThinking = getQueryParam('r') === 'true';
+            const observerRoot = root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
+            const observer = new MutationObserver(check);
+            if (observerRoot) {
+                observer.observe(observerRoot, { childList: true, subtree: true, attributes: true });
+            }
 
-        if (!query) return;
+            const poller = setInterval(check, 50);
+            const timer = setTimeout(() => finish(null), timeout);
+        });
+    };
 
-        // Wait for necessary elements to load
-        const maxWaitTime = 5000;
-        const startTime = Date.now();
-        let textarea;
+    const isVisible = (elem) => {
+        if (!elem) return false;
+        const style = window.getComputedStyle(elem);
+        return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    };
 
-        // Wait for the input box to load
-        while (!(textarea = document.getElementById('chat-input')) && Date.now() - startTime < maxWaitTime) {
-            await new Promise((r) => setTimeout(r, 100));
-        }
-
-        if (!textarea) {
-            console.error('Could not find the input box');
-            return;
-        }
-
-        // Set the query content in the input box
-        setReactInputValue(textarea, query);
-
-        // Force enable online search (if needed)
-        // const webSearchBtn = findButtonByText('Search');
-        // await toggleMode(webSearchBtn, true);
-
-        // Process DeepThink mode
-        const deepThinkBtn = findButtonByText('DeepThink (R1)');
-        await toggleMode(deepThinkBtn, needDeepThinking);
-
-        // Click the send button
-        const sendBtn = document.querySelector('div[role="button"][aria-disabled="false"]');
-        if (sendBtn) {
-            sendBtn.click();
-        } else {
-            const observer = new MutationObserver(() => {
-                const activeSendBtn = document.querySelector('div[role="button"][aria-disabled="false"]');
-                if (activeSendBtn) {
-                    observer.disconnect();
-                    activeSendBtn.click();
+    const findComposer = () => {
+        for (const selector of COMPOSER_SELECTORS) {
+            const candidates = document.querySelectorAll(selector);
+            for (const node of candidates) {
+                if (node instanceof HTMLTextAreaElement && isVisible(node)) {
+                    return node;
                 }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
+            }
         }
+        return null;
+    };
+
+    const getNativeTextareaValueSetter = () =>
+        Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+
+    const dispatchInputEvents = (elem) => {
+        const value = elem.value || '';
+        try {
+            elem.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, data: value }));
+        } catch (_) {
+            elem.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+        }
+        elem.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+    };
+
+    const setComposerText = (elem, text) => {
+        elem.focus();
+        const setter = getNativeTextareaValueSetter();
+        if (setter) {
+            setter.call(elem, '');
+            setter.call(elem, text);
+        } else {
+            elem.value = text;
+        }
+        dispatchInputEvents(elem);
+    };
+
+    const simulateEnter = (elem) => {
+        const eventInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+        elem.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+        elem.dispatchEvent(new KeyboardEvent('keypress', eventInit));
+        elem.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+    };
+
+    const simulateClick = (elem) => {
+        elem.focus();
+        elem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        elem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+        elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    };
+
+    const isDisabled = (elem) => elem?.getAttribute('aria-disabled') === 'true' || elem?.disabled;
+
+    const getButtonIconPath = (button) => button?.querySelector('svg path')?.getAttribute('d') || '';
+    const isAttachIcon = (path) => path.startsWith('M5.5498 9.75V5H6.9502V9.75');
+    const isSendIcon = (path) => path.startsWith('M8.3125 0.981587');
+    const isStopIcon = (path) => path.startsWith('M2 4.88');
+
+    const findSendOrStopButton = () => {
+        const candidates = Array.from(document.querySelectorAll('.bf38813a div[role="button"]'));
+        for (let i = candidates.length - 1; i >= 0; i--) {
+            const button = candidates[i];
+            if (!isVisible(button)) continue;
+            const iconPath = getButtonIconPath(button);
+            if (isAttachIcon(iconPath)) continue;
+            if (isSendIcon(iconPath) || isStopIcon(iconPath)) return button;
+            if (button.classList.contains('ds-icon-button')) return button;
+        }
+        return null;
+    };
+
+    const isSendButtonReady = (button) => {
+        if (!button || isDisabled(button)) return false;
+        const iconPath = getButtonIconPath(button);
+        return isSendIcon(iconPath);
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const query =
+        sessionStorage.getItem(STORAGE_QUERY_KEY) ||
+        params.get(QUERY_KEY);
+
+    if (!query) {
+        console.log(LOG_PREFIX, 'No query found, exiting');
+        return;
     }
 
-    // Execute processQueryParams after the page has loaded
-    window.addEventListener('load', () => {
-        setTimeout(processQueryParams, 1000);
-    });
+    console.log(LOG_PREFIX, 'Processing query');
+    sessionStorage.removeItem(STORAGE_QUERY_KEY);
+
+    const cleanUrl = new URL(window.location.href);
+    if (cleanUrl.searchParams.has(QUERY_KEY)) {
+        cleanUrl.searchParams.delete(QUERY_KEY);
+        window.history.replaceState({}, document.title, cleanUrl.toString());
+    }
+
+    console.log(LOG_PREFIX, 'Waiting for composer');
+    const composer = await waitFor(findComposer, { timeout: 30000 });
+    if (!composer) {
+        console.log(LOG_PREFIX, 'Composer not found, exiting');
+        return;
+    }
+
+    setComposerText(composer, query);
+    console.log(LOG_PREFIX, 'Composer filled');
+
+    console.log(LOG_PREFIX, 'Waiting for send button');
+    const readySendButton = await waitFor(() => {
+        const button = findSendOrStopButton();
+        return isSendButtonReady(button) ? button : null;
+    }, { timeout: 20000 });
+
+    if (!readySendButton) {
+        console.log(LOG_PREFIX, 'Send button did not become ready, trying Enter fallback');
+        composer.focus();
+        await delay(50);
+        simulateEnter(composer);
+        return;
+    }
+
+    // Prefer Enter first.
+    composer.focus();
+    await delay(50);
+    simulateEnter(composer);
+
+    // Backup click only if the button is still in "send" mode (not "stop generating").
+    await delay(220);
+    const finalButton = findSendOrStopButton();
+    if (isSendButtonReady(finalButton)) {
+        simulateClick(finalButton);
+    }
 })();
