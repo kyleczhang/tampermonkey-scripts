@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name         Tongyi query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0.1
+// @version      1.0.2
 // @description  Add URL query string search functionality for Tongyi web version, q is for query
+// @author       kyleczhang
 // @match        https://www.tongyi.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=tongyi.com
 // @license      MIT

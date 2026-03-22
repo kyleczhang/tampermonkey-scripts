@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.7.1
+// @version      2.7.2
 // @description  Submit ChatGPT prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*

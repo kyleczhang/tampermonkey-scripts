@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Watch Later Shortcut
 // @namespace    http://tampermonkey.net/
-// @version      1.1.2
+// @version      1.1.3
 // @description  Add and remove current YouTube video to and from the Youtube Watch Later list using a keyboard shortcut.
 // @author       kyleczhang
 // @match        https://www.youtube.com/*

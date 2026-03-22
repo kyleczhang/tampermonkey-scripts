@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kimi Moonshot URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.2.5
 // @description  Extracts 'q' URL parameter, populates the chat input, and submits the query on Kimi website
 // @author       kyleczhang
 // @match        https://www.kimi.com/*

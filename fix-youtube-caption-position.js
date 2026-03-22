@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         fix youtube caption position
 // @namespace    http://tampermonkey.net/
-// @version      2.8.1
+// @version      2.8.2
 // @description  Fix youtube caption's position. You can change the position by change the variable of cMarginBottom, cBottom or cLeft.
 // @author       kyleczhang
 // @match        *://*.youtube.com/*

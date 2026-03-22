@@ -1,8 +1,9 @@
 // ==UserScript==
 // @name         Tencent Yuanbao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.3.3
+// @version      1.3.4
 // @description  Add URL query string search functionality for Tencent Yuanbao web version, q is for query
+// @author       kyleczhang
 // @match        https://yuanbao.tencent.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=yuanbao.tencent.com
 // @license      MIT
