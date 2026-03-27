@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.7.2
+// @version      2.7.4
 // @description  Submit ChatGPT prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -15,7 +15,7 @@
 const QUERY_KEY = 'cq';
 const STORAGE_KEY = 'chatgpt-url-query';
 const LOG_PREFIX = '[ChatGPT URL Query]';
-const SEND_SELECTOR = 'button[data-testid="composer-send-button"], button[data-testid="send-button"], form[data-type="unified-composer"] button[type="submit"], button[aria-label="Send"], button[aria-label="Send prompt"]';
+const SEND_SELECTOR = 'button[data-testid="send-button"]';
 const COMPOSER_SELECTORS = [
     '#prompt-textarea[contenteditable="true"]',
     '.ProseMirror[contenteditable="true"]',
@@ -41,15 +41,11 @@ if (immediateQuery) {
      */
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    const SEND_POLL_DELAY = 50;
 
-    const waitFor = (resolverOrSelector, options = {}) => {
-        // Resolves when the selector matches, checking on mutations AND polling.
+    const waitFor = (resolver, options = {}) => {
+        // Resolves when resolver returns a truthy value, checking on mutations AND polling.
         // Polling ensures we catch elements that exist but are settling from animations.
         const { timeout = 5000, root = document } = options;
-        const resolver = typeof resolverOrSelector === 'function'
-            ? resolverOrSelector
-            : () => root.querySelector(resolverOrSelector);
 
         return new Promise(resolve => {
             const initial = resolver();
@@ -140,7 +136,6 @@ if (immediateQuery) {
     };
 
     const findComposer = () => {
-        // Prefer current rich editor, then any other contenteditable, then textarea.
         for (const selector of COMPOSER_SELECTORS) {
             const node = document.querySelector(selector);
             if (node && isVisible(node)) return node;
@@ -149,14 +144,10 @@ if (immediateQuery) {
     };
 
     const isSendButtonReady = (button) => {
-        // The send button is ready when it's:
-        // 1. Not disabled
-        // 2. Has send-button test id (not voice mode button)
-        // 3. aria-label contains "Send"
+        // Selector already guarantees data-testid="send-button"; just check enabled + aria-label.
         if (!button || isDisabled(button)) return false;
-        const testId = button.getAttribute('data-testid');
         const ariaLabel = button.getAttribute('aria-label');
-        return testId === 'send-button' && ariaLabel && ariaLabel.toLowerCase().includes('send');
+        return ariaLabel && ariaLabel.toLowerCase().includes('send');
     };
 
     const queryFromStorage = sessionStorage.getItem(STORAGE_KEY);
