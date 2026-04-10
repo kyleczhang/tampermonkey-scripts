@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Doubao query with URL
 // @namespace    http://tampermonkey.net/
-// @version      1.0.5
+// @version      1.0.6
 // @description  Add URL query string search functionality for Doubao web version, q is for query
 // @author       kyleczhang
 // @match        https://www.doubao.com/chat/*
@@ -103,11 +103,11 @@ if (savedQuery) {
     }
 
     const selectors = {
-        input: 'textarea[data-testid="chat_input_input"]',
-        send: 'button[data-testid="chat_input_send_button"]'
+        input: 'textarea.semi-input-textarea',
+        send: '#flow-end-msg-send'
     };
 
-    // Doubao now renders the send button only after text exists, so wait for the input first.
+    // Doubao renders the send button only after text exists, so wait for the input first.
     const textarea = await waitFor(() => document.querySelector(selectors.input), { timeout: maxWaitTime });
     if (!textarea) {
         return;
