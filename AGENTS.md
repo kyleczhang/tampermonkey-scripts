@@ -50,4 +50,4 @@ The scripts are independent copies (no shared module — userscripts can't impor
 
 Each script hard-codes CSS selectors for that site's composer, send button, and stop button at the top of the file (e.g. `COMPOSER_SELECTOR`, `SEND_SELECTOR`, `STOP_SELECTOR`). These break whenever the target site ships a DOM change — fixing/maintaining these selectors is the dominant kind of edit in this repo (see commit history, e.g. the Doubao selector updates). When updating a script for a site change, update the selectors and bump `@version`.
 
-The empty `field-*.html` files (`field-after-load.html`, `field-when-generating.html`, `field-with-input.html`) are scratch placeholders for pasting captured DOM snapshots of a composer in its different states while reverse-engineering selectors.
+The empty `field-*.html` files in `dom-snapshots/` (`field-after-load.html`, `field-when-generating.html`, `field-with-input.html`) are scratch placeholders for pasting captured DOM snapshots of a composer in its different states while reverse-engineering selectors.
