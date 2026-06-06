@@ -13,57 +13,68 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+  "use strict";
 
-    // Function to execute YouTube commands (add or remove from Watch Later)
-    function executeYouTubeCommand(action) {
-        const videoId = new URL(window.location.href).searchParams.get("v");
-        const appElement = document.querySelector("ytd-app");
+  // Function to execute YouTube commands (add or remove from Watch Later)
+  function executeYouTubeCommand(action) {
+    const videoId = new URL(window.location.href).searchParams.get("v");
+    const appElement = document.querySelector("ytd-app");
 
-        // Check if video ID and YouTube app element are found
-        if (!videoId || !appElement) {
-            return;
-        }
-
-        const params = {
-            clickTrackingParams: "",
-            commandMetadata: { webCommandMetadata: { sendPost: true, apiUrl: "/youtubei/v1/browse/edit_playlist" } },
-            playlistEditEndpoint: {
-                playlistId: "WL",
-                actions: []
-            }
-        };
-
-        if (action === "add") {
-            params.playlistEditEndpoint.actions.push({ addedVideoId: videoId, action: "ACTION_ADD_VIDEO" });
-        } else if (action === "remove") {
-            params.playlistEditEndpoint.actions.push({ action: "ACTION_REMOVE_VIDEO_BY_VIDEO_ID", removedVideoId: videoId });
-        }
-
-        const event = new window.CustomEvent('yt-action', {
-            detail: {
-                actionName: 'yt-service-request',
-                returnValue: [],
-                args: [{ data: {} }, params],
-                optionalAction: false,
-            }
-        });
-
-        // Dispatch the event to execute the action
-        appElement.dispatchEvent(event);
+    // Check if video ID and YouTube app element are found
+    if (!videoId || !appElement) {
+      return;
     }
 
-    // Function to add keyboard shortcuts for adding/removing videos
-    function addKeyboardShortcuts() {
-        document.addEventListener('keydown', function (event) {
-            if (event.code === 'KeyR' && event.altKey && event.shiftKey) {
-                executeYouTubeCommand("add");
-            } else if (event.code === 'KeyF' && event.altKey && event.shiftKey) {
-                executeYouTubeCommand("remove");
-            }
-        });
+    const params = {
+      clickTrackingParams: "",
+      commandMetadata: {
+        webCommandMetadata: {
+          sendPost: true,
+          apiUrl: "/youtubei/v1/browse/edit_playlist",
+        },
+      },
+      playlistEditEndpoint: {
+        playlistId: "WL",
+        actions: [],
+      },
+    };
+
+    if (action === "add") {
+      params.playlistEditEndpoint.actions.push({
+        addedVideoId: videoId,
+        action: "ACTION_ADD_VIDEO",
+      });
+    } else if (action === "remove") {
+      params.playlistEditEndpoint.actions.push({
+        action: "ACTION_REMOVE_VIDEO_BY_VIDEO_ID",
+        removedVideoId: videoId,
+      });
     }
 
-    // Initialize the script by adding keyboard shortcuts
-    addKeyboardShortcuts();
+    const event = new window.CustomEvent("yt-action", {
+      detail: {
+        actionName: "yt-service-request",
+        returnValue: [],
+        args: [{ data: {} }, params],
+        optionalAction: false,
+      },
+    });
+
+    // Dispatch the event to execute the action
+    appElement.dispatchEvent(event);
+  }
+
+  // Function to add keyboard shortcuts for adding/removing videos
+  function addKeyboardShortcuts() {
+    document.addEventListener("keydown", function (event) {
+      if (event.code === "KeyR" && event.altKey && event.shiftKey) {
+        executeYouTubeCommand("add");
+      } else if (event.code === "KeyF" && event.altKey && event.shiftKey) {
+        executeYouTubeCommand("remove");
+      }
+    });
+  }
+
+  // Initialize the script by adding keyboard shortcuts
+  addKeyboardShortcuts();
 })();

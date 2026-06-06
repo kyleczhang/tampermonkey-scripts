@@ -14,40 +14,46 @@
 // ==/UserScript==
 
 (async () => {
-    'use strict';
+  "use strict";
 
-    // Get the query parameter from URL
-    const query = new URLSearchParams(window.location.search).get('q');
-    console.log('Query from URL:', query);
-    if (!query) return;
+  // Get the query parameter from URL
+  const query = new URLSearchParams(window.location.search).get("q");
+  console.log("Query from URL:", query);
+  if (!query) return;
 
-    const delay = (ms) => new Promise(res => setTimeout(res, ms));
+  const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-    // Wait for necessary elements to load with a timeout
-    const maxWaitTime = 5000;
-    const startTime = Date.now();
-    let chatInput;
+  // Wait for necessary elements to load with a timeout
+  const maxWaitTime = 5000;
+  const startTime = Date.now();
+  let chatInput;
 
-    // Poll for the chat input element
-    while (!chatInput && Date.now() - startTime < maxWaitTime) {
-        chatInput = document.querySelector('.chat-input-editor');
-        console.log(chatInput);
-        if (!chatInput) {
-            await delay(100);
-        }
-    }
-
+  // Poll for the chat input element
+  while (!chatInput && Date.now() - startTime < maxWaitTime) {
+    chatInput = document.querySelector(".chat-input-editor");
+    console.log(chatInput);
     if (!chatInput) {
-        console.error('Could not find chat input element within the timeout period');
-        return;
+      await delay(100);
     }
+  }
 
-    // Focus and populate the input
-    chatInput.focus();
-    chatInput.value = query;
-    chatInput.dispatchEvent(new InputEvent('input', { data: query, bubbles: true }));
+  if (!chatInput) {
+    console.error(
+      "Could not find chat input element within the timeout period",
+    );
+    return;
+  }
 
-    // Submit query after a brief delay
-    await delay(500);
-    chatInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+  // Focus and populate the input
+  chatInput.focus();
+  chatInput.value = query;
+  chatInput.dispatchEvent(
+    new InputEvent("input", { data: query, bubbles: true }),
+  );
+
+  // Submit query after a brief delay
+  await delay(500);
+  chatInput.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true }),
+  );
 })();

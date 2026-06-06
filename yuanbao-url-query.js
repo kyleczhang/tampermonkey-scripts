@@ -13,134 +13,178 @@
 // ==/UserScript==
 
 // Capture query parameter before redirect
-const savedQuery = new URLSearchParams(window.location.search).get('q');
+const savedQuery = new URLSearchParams(window.location.search).get("q");
 if (savedQuery) {
-    sessionStorage.setItem('yuanbao-query', savedQuery);
+  sessionStorage.setItem("yuanbao-query", savedQuery);
 }
 
 (async () => {
-    'use strict';
+  "use strict";
 
-    // Get query from storage or URL
-    const query = sessionStorage.getItem('yuanbao-query') || new URLSearchParams(window.location.search).get('q');
-    if (!query) {
+  // Get query from storage or URL
+  const query =
+    sessionStorage.getItem("yuanbao-query") ||
+    new URLSearchParams(window.location.search).get("q");
+  if (!query) {
+    return;
+  }
+  sessionStorage.removeItem("yuanbao-query");
+
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const waitFor = (resolver, options = {}) => {
+    const { timeout = 10000, root = document } = options;
+    return new Promise((resolve) => {
+      const initial = resolver();
+      if (initial) {
+        resolve(initial);
         return;
-    }
-    sessionStorage.removeItem('yuanbao-query');
+      }
 
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    const waitFor = (resolver, options = {}) => {
-        const { timeout = 10000, root = document } = options;
-        return new Promise(resolve => {
-            const initial = resolver();
-            if (initial) {
-                resolve(initial);
-                return;
-            }
-
-            const observerRoot = root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
-            const observer = new MutationObserver(() => {
-                const result = resolver();
-                if (result) {
-                    observer.disconnect();
-                    clearTimeout(timer);
-                    resolve(result);
-                }
-            });
-
-            observer.observe(observerRoot, { childList: true, subtree: true });
-
-            const timer = setTimeout(() => {
-                observer.disconnect();
-                resolve(null);
-            }, timeout);
-        });
-    };
-
-    const simulateInput = (elem, text) => {
-        elem.focus();
-        elem.textContent = text;
-        elem.dispatchEvent(new Event('focus', { bubbles: true }));
-        elem.dispatchEvent(new InputEvent('input', {
-            data: text,
-            bubbles: true,
-            inputType: 'insertText'
-        }));
-        elem.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-
-    const simulateEnter = (elem) => {
-        elem.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-        elem.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-        elem.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-    };
-
-    const simulateClick = (elem) => {
-        elem.focus();
-        elem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-        elem.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-        elem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    };
-
-    const maxWaitTime = 10000;
-
-    if (document.readyState !== 'complete') {
-        await new Promise(resolve => {
-            window.addEventListener('load', resolve, { once: true });
-        });
-    }
-
-    const selectors = {
-        modelSwitch: '[dt-button-id="model_switch"]',
-        editor: '.ql-editor[contenteditable="true"]',
-        sendBtn: '#yuanbao-send-btn'
-    };
-
-    const elements = await waitFor(() => {
-        const button = document.querySelector(selectors.modelSwitch);
-        const chat = document.querySelector(selectors.editor);
-        const sendBtn = document.querySelector(selectors.sendBtn);
-        return button && chat && sendBtn ? { button, chat, sendBtn } : null;
-    }, { timeout: maxWaitTime });
-
-    if (!elements) {
-        return;
-    }
-
-    const { button, chat, sendBtn } = elements;
-
-    // Set model to DeepSeek
-    button.setAttribute("dt-model-id", "deep_seek");
-    button.setAttribute("dt-ext1", "deep_seek");
-    const label = button.querySelector('.t-button__text span, .t-button__text, span');
-    if (label) {
-        label.textContent = "DeepSeek";
-    }
-
-    // Input query
-    await delay(100);
-    simulateInput(chat, query);
-    await delay(200);
-
-    const isDisabled = (elem) => {
-        if (!elem) {
-            return true;
+      const observerRoot =
+        root.nodeType === Node.DOCUMENT_NODE ? root.documentElement : root;
+      const observer = new MutationObserver(() => {
+        const result = resolver();
+        if (result) {
+          observer.disconnect();
+          clearTimeout(timer);
+          resolve(result);
         }
-        const classList = elem.classList ? Array.from(elem.classList) : (elem.className || '').split(/\s+/);
-        const disabledAttr = elem.getAttribute('aria-disabled');
-        return elem.hasAttribute('disabled') || disabledAttr === 'true' || classList.some(cls => cls.includes('send-btn--disabled'));
-    };
+      });
 
-    let attempts = 0;
-    const maxAttempts = 120;
-    let currentSendBtn = sendBtn;
-    while (isDisabled(currentSendBtn) && attempts < maxAttempts) {
-        currentSendBtn = document.querySelector(selectors.sendBtn) || currentSendBtn;
-        await delay(100);
-        attempts++;
-    }
+      observer.observe(observerRoot, { childList: true, subtree: true });
 
-    if (!isDisabled(currentSendBtn)) {
-        simulateClick(currentSendBtn);
+      const timer = setTimeout(() => {
+        observer.disconnect();
+        resolve(null);
+      }, timeout);
+    });
+  };
+
+  const simulateInput = (elem, text) => {
+    elem.focus();
+    elem.textContent = text;
+    elem.dispatchEvent(new Event("focus", { bubbles: true }));
+    elem.dispatchEvent(
+      new InputEvent("input", {
+        data: text,
+        bubbles: true,
+        inputType: "insertText",
+      }),
+    );
+    elem.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  const simulateEnter = (elem) => {
+    elem.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        keyCode: 13,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    elem.dispatchEvent(
+      new KeyboardEvent("keypress", {
+        key: "Enter",
+        keyCode: 13,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    elem.dispatchEvent(
+      new KeyboardEvent("keyup", {
+        key: "Enter",
+        keyCode: 13,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  };
+
+  const simulateClick = (elem) => {
+    elem.focus();
+    elem.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
+    elem.dispatchEvent(
+      new MouseEvent("mouseup", { bubbles: true, cancelable: true }),
+    );
+    elem.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+  };
+
+  const maxWaitTime = 10000;
+
+  if (document.readyState !== "complete") {
+    await new Promise((resolve) => {
+      window.addEventListener("load", resolve, { once: true });
+    });
+  }
+
+  const selectors = {
+    modelSwitch: '[dt-button-id="model_switch"]',
+    editor: '.ql-editor[contenteditable="true"]',
+    sendBtn: "#yuanbao-send-btn",
+  };
+
+  const elements = await waitFor(
+    () => {
+      const button = document.querySelector(selectors.modelSwitch);
+      const chat = document.querySelector(selectors.editor);
+      const sendBtn = document.querySelector(selectors.sendBtn);
+      return button && chat && sendBtn ? { button, chat, sendBtn } : null;
+    },
+    { timeout: maxWaitTime },
+  );
+
+  if (!elements) {
+    return;
+  }
+
+  const { button, chat, sendBtn } = elements;
+
+  // Set model to DeepSeek
+  button.setAttribute("dt-model-id", "deep_seek");
+  button.setAttribute("dt-ext1", "deep_seek");
+  const label = button.querySelector(
+    ".t-button__text span, .t-button__text, span",
+  );
+  if (label) {
+    label.textContent = "DeepSeek";
+  }
+
+  // Input query
+  await delay(100);
+  simulateInput(chat, query);
+  await delay(200);
+
+  const isDisabled = (elem) => {
+    if (!elem) {
+      return true;
     }
+    const classList = elem.classList
+      ? Array.from(elem.classList)
+      : (elem.className || "").split(/\s+/);
+    const disabledAttr = elem.getAttribute("aria-disabled");
+    return (
+      elem.hasAttribute("disabled") ||
+      disabledAttr === "true" ||
+      classList.some((cls) => cls.includes("send-btn--disabled"))
+    );
+  };
+
+  let attempts = 0;
+  const maxAttempts = 120;
+  let currentSendBtn = sendBtn;
+  while (isDisabled(currentSendBtn) && attempts < maxAttempts) {
+    currentSendBtn =
+      document.querySelector(selectors.sendBtn) || currentSendBtn;
+    await delay(100);
+    attempts++;
+  }
+
+  if (!isDisabled(currentSendBtn)) {
+    simulateClick(currentSendBtn);
+  }
 })();
