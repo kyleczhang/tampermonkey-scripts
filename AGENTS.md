@@ -35,7 +35,7 @@ Some scripts have a written requirements doc. These live in `plans/` and are nam
 
 ### Query-param key is NOT uniform
 
-Newer scripts use `?cq=` (chatgpt, claude, deepseek); older ones use `?q=` (gemini, doubao, kimi, yuanbao). Check `QUERY_KEY` / the `searchParams.get(...)` call at the top of the specific file before assuming.
+Newer scripts use `?cq=` (chatgpt, claude, deepseek); older ones use `?q=` (gemini, doubao, kimi, tongyi, yuanbao). Check `QUERY_KEY` / the `searchParams.get(...)` call at the top of the specific file before assuming.
 
 ## Shared architecture of the URL-query scripts
 
