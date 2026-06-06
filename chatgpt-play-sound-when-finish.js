@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        ChatGPT play sound when finish generating
 // @namespace   http://tampermonkey.net/
-// @version     2.6.1
+// @version     2.6.2
 // @description Plays a custom chime when ChatGPT finishes generating responses (softer G-major arpeggio)
 // @author       kyleczhang
 // @match       https://chatgpt.com/*

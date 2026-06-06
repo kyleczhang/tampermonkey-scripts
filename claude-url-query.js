@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Claude URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Submit Claude prompts via ?cq= query parameter
 // @author       kyleczhang
 // @match        https://claude.ai/*
