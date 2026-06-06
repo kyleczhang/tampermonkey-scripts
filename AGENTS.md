@@ -11,7 +11,7 @@ There is nothing to build or run from a terminal. Code is formatted with Prettie
 Every script's metadata block points `@downloadURL`/`@updateURL` at `https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/<filename>.js`. Two consequences:
 
 - **The filename is part of the public contract.** Renaming a file breaks auto-update for everyone who installed it. Don't rename without intent.
-- **Bumping `@version` is how updates ship.** Tampermonkey only pulls an update when the version in the metadata block is higher than the installed one. Any user-facing change must include a `@version` bump or it will never reach users.
+- **Bumping `@version` is how updates ship.** Tampermonkey only pulls an update when the version in the metadata block is higher than the installed one. **Any change to a script's code must include a `@version` bump** — no matter how trivial (even pure formatting). The simplest rule is: if the file's code changed, its version goes up. The pre-commit hook does this automatically.
 
 ### Formatting and version bumping are automated by a pre-commit hook
 
@@ -20,7 +20,7 @@ Every script's metadata block points `@downloadURL`/`@updateURL` at `https://raw
 - Formatting runs first so whitespace changes never mask a real code diff. It uses the local `node_modules/.bin/prettier`; if Prettier isn't installed (no `npm install`) the hook prints a warning and skips formatting instead of failing.
 - If you _did_ edit the `@version` line yourself in the same commit, the hook detects it and skips that file (no double bump) — do this when you want a minor/major bump rather than patch, e.g. set `2.0.0` by hand.
 - Commits that touch no `.js` (docs, the Auto-backup commits) bump nothing.
-- Skip formatting for one commit with `SKIP_FORMAT=1`, version bumping with `SKIP_BUMP=1` (e.g. `SKIP_BUMP=1 git commit ...` for a formatting-only commit that shouldn't ship a version).
+- Escape hatches exist but should be rare: `SKIP_FORMAT=1` skips formatting and `SKIP_BUMP=1` skips the version bump for one commit. Don't use `SKIP_BUMP` just because a change is "only formatting" — per the rule above, any code change should bump.
 - The hook lives in `.githooks/` (tracked) and is wired via `git config core.hooksPath .githooks`. Git does not enable repo hooks automatically, so **a fresh clone must run that `git config` command once** or the hook won't fire.
 
 ## Plan / requirements docs
