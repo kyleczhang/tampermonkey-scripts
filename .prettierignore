@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+
+# Generated or vendored output
+dist/
+build/
+
+# Non-source docs handled separately (optional — remove to format these too)
