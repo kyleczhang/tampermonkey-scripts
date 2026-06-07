@@ -31,6 +31,10 @@ Keep commit messages plain. **Do not add `Co-Authored-By` trailers or any other 
 
 Some scripts have a written requirements doc. These live in `plans/` and are named `plan-for-<script-filename-without-.js>.md` — e.g. `plans/plan-for-youtube-custom-keyboard-shortcut.md` corresponds to `youtube-custom-keyboard-shortcut.js`. Docs are written in English. When a script has a matching plan doc, treat it as the source of truth for intended behavior; keep them in sync when behavior changes, and follow the same naming convention for any new doc. Not every script has one — scripts without a doc are fine as-is; don't backfill docs unless asked.
 
+## Writing markdown
+
+When writing or editing any markdown file (plan docs, this file, etc.), do not hard-wrap paragraphs or insert arbitrary line breaks to keep lines short. Ignore line-length limits entirely — let each paragraph be a single long line and rely on the editor's soft wrap. Only break lines where a break is semantically meaningful (separate paragraphs, list items, headings).
+
 ## Two families of scripts
 
 **1. AI-chat "URL query" auto-submitters** — `*-url-query.js` (chatgpt, claude, deepseek, gemini, tongyi, kimi, doubao, yuanbao). These read a query string from the page URL, type it into the site's chat composer, and auto-send it. They all implement the same flow (see below).
