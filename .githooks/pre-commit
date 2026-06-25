@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# Auto-bump the @version (patch / last component) of any staged UserScript
+# whose code actually changed, so Tampermonkey picks up updates via @updateURL.
+#
+# Rules:
+#   - Only staged *.js files that contain an "@version" line are considered.
+#   - If you already changed the @version line yourself in this commit, it is
+#     left alone (no double bump).
+#   - Otherwise the last numeric component is incremented (1.0.0 -> 1.0.1).
+#
+# Skip entirely for one commit with:  SKIP_BUMP=1 git commit ...
+set -euo pipefail
+
+if [ "${SKIP_BUMP:-0}" = "1" ]; then
+  exit 0
+fi
+
+# --- Prettier: format staged files and re-stage them ----------------------
+# Runs before the version bump so formatting whitespace never masks a real
+# code change. Skip for one commit with:  SKIP_FORMAT=1 git commit ...
+if [ "${SKIP_FORMAT:-0}" != "1" ]; then
+  if [ -x "node_modules/.bin/prettier" ]; then
+    # Staged, still-present files (Added/Copied/Modified/Renamed).
+    staged=$(git diff --cached --name-only --diff-filter=ACMR)
+    if [ -n "$staged" ]; then
+      # --ignore-unknown skips files Prettier can't parse; .prettierignore
+      # is still honored even for explicitly passed paths. NUL-delimited so
+      # paths with spaces survive.
+      echo "$staged" | tr '\n' '\0' | xargs -0 node_modules/.bin/prettier --write --ignore-unknown
+      echo "$staged" | tr '\n' '\0' | xargs -0 git add --
+    fi
+  else
+    echo "pre-commit: prettier not installed (run 'npm install'), skipping format" >&2
+  fi
+fi
+
+# Staged, still-present .js files (Added/Copied/Modified/Renamed).
+# Piped into a while-loop for bash 3.2 (macOS) compatibility — no mapfile.
+git diff --cached --name-only --diff-filter=ACMR -- '*.js' | while IFS= read -r f; do
+  [ -f "$f" ] || continue
+
+  # Must have a version line to bump.
+  grep -qE '^//[[:space:]]*@version' "$f" || continue
+
+  # If the staged diff already touches the @version line, the user bumped it
+  # manually — respect that and skip.
+  if git diff --cached -U0 -- "$f" | grep -qE '^\+//[[:space:]]*@version'; then
+    continue
+  fi
+
+  cur=$(grep -m1 -E '^//[[:space:]]*@version' "$f" | grep -oE '[0-9]+(\.[0-9]+)*' | head -1)
+  [ -n "$cur" ] || continue
+
+  new=$(echo "$cur" | awk 'BEGIN { FS = OFS = "." } { $NF = $NF + 1; print }')
+
+  # Replace only on the @version line, only the first match.
+  perl -i -pe "s/\Q$cur\E/$new/ if /^\/\/\s*\@version/ && !\$done++" "$f"
+
+  git add -- "$f"
+  echo "pre-commit: bumped $f  $cur -> $new"
+done

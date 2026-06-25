@@ -1,0 +1,13 @@
+{
+  "name": "tampermonkey-scripts",
+  "version": "1.0.0",
+  "description": "A collection of Tampermonkey userscripts.",
+  "private": true,
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}
