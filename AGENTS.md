@@ -29,7 +29,7 @@ Keep commit messages plain. **Do not add `Co-Authored-By` trailers or any other 
 
 ## Plan / requirements docs
 
-Some scripts have a written requirements doc. These live in `plans/` and are named `plan-for-<script-filename-without-.js>.md` — e.g. `plans/plan-for-youtube-custom-keyboard-shortcut.md` corresponds to `youtube-custom-keyboard-shortcut.js`. Docs are written in English. When a script has a matching plan doc, treat it as the source of truth for intended behavior; keep them in sync when behavior changes, and follow the same naming convention for any new doc. Not every script has one — scripts without a doc are fine as-is; don't backfill docs unless asked.
+Some scripts have a written requirements doc. These live in `plans/` and are named `plan-for-<script-filename-without-.js>.md` — e.g. `plans/plan-for-youtube-custom-keyboard-shortcuts.md` corresponds to `youtube-custom-keyboard-shortcuts.js`. Docs are written in English. When a script has a matching plan doc, treat it as the source of truth for intended behavior; keep them in sync when behavior changes, and follow the same naming convention for any new doc. Not every script has one — scripts without a doc are fine as-is; don't backfill docs unless asked.
 
 ## Writing markdown
 
@@ -39,7 +39,7 @@ When writing or editing any markdown file (plan docs, this file, etc.), do not h
 
 **1. AI-chat "URL query" auto-submitters** — `*-url-query.js` (chatgpt, claude, deepseek, gemini, tongyi, kimi, doubao, yuanbao). These read a query string from the page URL, type it into the site's chat composer, and auto-send it. They all implement the same flow (see below).
 
-**2. Standalone site utilities** — `chatgpt-play-sound-when-finish.js`, `fix-youtube-caption-position.js`, `youtube-watch-later-shortcut.js`, `youtube-custom-keyboard-shortcut.js`. Independent, no shared pattern. Note `youtube-custom-keyboard-shortcut.js` deliberately works by _simulating YouTube's own native shortcut keys_ (so the site's built-in feedback animations fire) rather than calling the player API directly — keep that approach when editing it.
+**2. Standalone site utilities** — `chatgpt-play-sound-when-finish.js`, `fix-youtube-caption-position.js`, `youtube-watch-later-toggle.js`, `youtube-custom-keyboard-shortcuts.js`. Independent, no shared pattern. Note `youtube-custom-keyboard-shortcuts.js` deliberately works by _simulating YouTube's own native shortcut keys_ (so the site's built-in feedback animations fire) rather than calling the player API directly — keep that approach when editing it.
 
 ### Query-param key is NOT uniform
 

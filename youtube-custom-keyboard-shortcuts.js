@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         YouTube Custom Keyboard Shortcut
+// @name         YouTube Custom Keyboard Shortcuts
 // @namespace    http://tampermonkey.net/
 // @version      1.0.0
 // @description  Custom YouTube shortcuts: [ / ] adjust speed by 0.25, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward. Triggers YouTube's native feedback animations by simulating its native shortcuts.
@@ -7,8 +7,8 @@
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @license      MIT
-// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-custom-keyboard-shortcut.js
-// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-custom-keyboard-shortcut.js
+// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-custom-keyboard-shortcuts.js
+// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-custom-keyboard-shortcuts.js
 // @grant        none
 // ==/UserScript==
 

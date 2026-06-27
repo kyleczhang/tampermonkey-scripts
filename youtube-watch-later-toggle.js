@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         YouTube Watch Later Shortcut
+// @name         YouTube Watch Later Toggle
 // @namespace    http://tampermonkey.net/
 // @version      1.2.0
 // @description  Show whether the current YouTube video is in Watch Later with a button next to the video actions, and toggle it by clicking the button or pressing Shift+W.
@@ -7,8 +7,8 @@
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @license      MIT
-// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-watch-later-shortcut.js
-// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-watch-later-shortcut.js
+// @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-watch-later-toggle.js
+// @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/youtube-watch-later-toggle.js
 // @grant        none
 // ==/UserScript==
 
