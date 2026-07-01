@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Custom Keyboard Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
-// @description  Custom YouTube shortcuts: [ / ] adjust speed by 0.25, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward, - and = fast-forward 1 / 10 minutes. Triggers YouTube's native feedback animations by simulating its native shortcuts.
+// @version      1.2.0
+// @description  Custom YouTube shortcuts: [ / ] adjust speed by 0.25, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward, - and = fast-forward 1 / 10 minutes, n / p go to next / previous video. Triggers YouTube's native feedback animations by simulating its native shortcuts.
 // @author       kyleczhang
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
@@ -112,6 +112,16 @@
   // ArrowLeft -> seek backward (native)
   function simulateSeekBackward() {
     simulateNativeKey({ key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 });
+  }
+
+  // Shift + N -> next video (native)
+  function simulateNextVideo() {
+    simulateNativeKey({ key: "N", code: "KeyN", keyCode: 78, shiftKey: true });
+  }
+
+  // Shift + P -> previous video (native)
+  function simulatePrevVideo() {
+    simulateNativeKey({ key: "P", code: "KeyP", keyCode: 80, shiftKey: true });
   }
 
   // Seek forward/backward by an arbitrary number of seconds. There is no
@@ -249,6 +259,16 @@
         case "=":
           event.preventDefault();
           seekBySeconds(600); // fast-forward 10 minutes
+          break;
+        case "n":
+        case "N":
+          event.preventDefault();
+          simulateNextVideo();
+          break;
+        case "p":
+        case "P":
+          event.preventDefault();
+          simulatePrevVideo();
           break;
         default:
           break;
