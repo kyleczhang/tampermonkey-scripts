@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Custom Keyboard Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
-// @description  Custom YouTube shortcuts: [ / ] adjust speed by 0.25, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward. Triggers YouTube's native feedback animations by simulating its native shortcuts.
+// @version      1.1.0
+// @description  Custom YouTube shortcuts: [ / ] adjust speed by 0.25, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward, - and = fast-forward 1 / 10 minutes. Triggers YouTube's native feedback animations by simulating its native shortcuts.
 // @author       kyleczhang
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
@@ -114,6 +114,25 @@
     simulateNativeKey({ key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 });
   }
 
+  // Seek forward/backward by an arbitrary number of seconds. There is no
+  // native shortcut for large jumps, so adjust currentTime directly.
+  function seekBySeconds(seconds) {
+    const video = getVideo();
+    if (!video) {
+      return;
+    }
+    const duration = Number.isFinite(video.duration)
+      ? video.duration
+      : Infinity;
+    const target = Math.min(Math.max(video.currentTime + seconds, 0), duration);
+    const player = getPlayer();
+    if (player && typeof player.seekTo === "function") {
+      player.seekTo(target, true);
+    } else {
+      video.currentTime = target;
+    }
+  }
+
   // ---- Speed change to an arbitrary target (hybrid approach) -----------
 
   // Change speed to `target`. If the gap is a single 0.25 step, simulate one
@@ -222,6 +241,14 @@
         case ";":
           event.preventDefault();
           simulateSeekBackward();
+          break;
+        case "-":
+          event.preventDefault();
+          seekBySeconds(60); // fast-forward 1 minute
+          break;
+        case "=":
+          event.preventDefault();
+          seekBySeconds(600); // fast-forward 10 minutes
           break;
         default:
           break;
