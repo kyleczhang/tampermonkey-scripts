@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Watch Later Toggle
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
-// @description  Show whether the current YouTube video is in Watch Later with a button next to the video actions, and toggle it by clicking the button or pressing Shift+W.
+// @version      1.2.1
+// @description  Show whether the current YouTube video is in Watch Later with a button next to the video actions, and toggle it by clicking the button or pressing Shift+W. Also hides YouTube's Download button from the actions row.
 // @author       kyleczhang
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
@@ -245,7 +245,6 @@
         icon: makeSpinner(),
         text: "Watch Later",
         ...neutral,
-        dim: true,
         busy: true,
         title: "Checking Watch Later status…",
       };
@@ -277,7 +276,7 @@
     Object.assign(button.style, {
       background: view.bg,
       color: view.fg,
-      opacity: view.dim ? "0.6" : "1",
+      opacity: view.busy ? "0.6" : "1",
       cursor: view.busy ? "default" : "pointer",
     });
     button.title = view.title;
@@ -329,16 +328,31 @@
   // width is fixed (see createButton) so toggling never reflows the menu renderer.
   const ensureButton = async () => {
     if (getButton()) return;
-    const row = await waitFor(
-      () =>
-        document.querySelector(
-          "ytd-watch-metadata #top-level-buttons-computed",
-        ) ||
-        document.querySelector("ytd-watch-metadata #actions #actions-inner"),
+    const row = await waitFor(() =>
+      document.querySelector("ytd-watch-metadata #top-level-buttons-computed"),
     );
     if (!row || getButton()) return;
     row.insertBefore(createButton(), row.firstChild);
     render();
+  };
+
+  // ---------- hide the native Download button ----------
+
+  // Collapse YouTube's "Download" action (the Premium-only offline-save button)
+  // out of the actions row to keep it uncluttered. A global stylesheet is used
+  // instead of touching the DOM, so it keeps applying as YouTube re-renders the
+  // row. Caveats: the selector matches by aria-label, which is UI-language
+  // specific ("Download" in English); and because Download is a flexible item,
+  // removing it lets YouTube's overflow logic pull another button in from the ⋯
+  // menu to fill the freed space.
+  const hideDownloadButton = () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      ytd-watch-metadata #flexible-item-buttons button[aria-label="Download"] {
+        display: none !important;
+      }
+    `;
+    (document.head || document.documentElement).append(style);
   };
 
   // ---------- lifecycle ----------
@@ -382,5 +396,6 @@
 
   document.addEventListener("keydown", onKeydown);
   document.addEventListener("yt-navigate-finish", onPage);
+  hideDownloadButton();
   onPage();
 })();
