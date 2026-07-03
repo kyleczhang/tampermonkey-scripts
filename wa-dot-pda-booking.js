@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WA DoT PDA Booking Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
-// @description  Automates the WA Department of Transport PDA booking flow: waits for Bitwarden to fill the login form then clicks Login; auto-clicks Verify once a 6-digit MFA code is entered; navigates Overview -> Driver's Licence -> Book PDA; and on the booking page pre-fills the date range (11/07/2026 - 30/09/2026) and ticks the "Success" site only.
+// @version      1.1.1
+// @description  Automates the WA Department of Transport PDA booking flow: waits for Bitwarden to fill the login form then clicks Login; auto-clicks Verify once a 6-digit MFA code is entered; navigates Overview -> Driver's Licence -> Book PDA; and on the booking page pre-fills the date range (11/07/2026 - 30/09/2026), ticks the "Success" site only, then clicks Search.
 // @author       kyleczhang
 // @match        https://online.transport.wa.gov.au/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=transport.wa.gov.au
@@ -225,7 +225,20 @@
     // Tick Success last: the checkboxes have no AJAX handler, so nothing will
     // wipe them afterwards.
     await selectSuccessOnly();
-    log("Selection applied. Review the values, then click Search.");
+    await sleep(600);
+    // Submit the search. The Search button's id ("id8") is Wicket-generated
+    // and unstable, so target it by its stable form name instead.
+    const searchButton = await waitFor(
+      () =>
+        document.querySelector('input[name="searchBookingContainer:search"]'),
+      { timeout: 15000 },
+    );
+    if (searchButton) {
+      log("Clicking Search.");
+      searchButton.click();
+    } else {
+      log("Search button not found.");
+    }
   }
 
   // --- Router --------------------------------------------------------------
