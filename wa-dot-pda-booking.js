@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WA DoT PDA Booking Helper
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
-// @description  Automates the WA Department of Transport PDA booking flow: waits for Bitwarden to fill the login form then clicks Login; auto-clicks Verify once a 6-digit MFA code is entered; navigates Overview -> Driver's Licence -> Book PDA; and on the booking page pre-fills the date range (11/07/2026 - 30/09/2026), ticks the "Success" site only, then clicks Search.
+// @version      1.3.0
+// @description  Automates the WA Department of Transport PDA booking flow: waits for Bitwarden to fill the login form then clicks Login; auto-clicks Verify once a 6-digit MFA code is entered; navigates Overview -> Driver's Licence -> Book PDA (or Manage booking -> Change when a booking already exists); and on the booking search form pre-fills the date range (11/07/2026 - 30/09/2026), ticks the "Success" site only, then clicks Search.
 // @author       kyleczhang
 // @match        https://online.transport.wa.gov.au/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=transport.wa.gov.au
@@ -86,6 +86,20 @@
     log(`Clicking ${label}.`);
     el.click();
     return true;
+  }
+
+  // Find a PrimeFaces button by its visible label text. The button ids on the
+  // licence page are Wicket/JSF-generated (e.g. "form:j_idt239:j_idt250") and
+  // change between deployments, so matching on the stable label is more
+  // reliable than the id. Returns the <button> element or null.
+  function findButtonByLabel(label) {
+    const spans = document.querySelectorAll(".ui-button-text");
+    for (const span of spans) {
+      if (span.textContent.trim() === label) {
+        return span.closest("button");
+      }
+    }
+    return null;
   }
 
   // --- Step 1: Login page --------------------------------------------------
@@ -241,6 +255,71 @@
     }
   }
 
+  // --- Step 4: Driver's Licence page --------------------------------------
+  // The page shows exactly one of two entry buttons depending on whether a
+  // booking already exists: "Manage booking" (to change/cancel it) or "Book
+  // PDA" (to make a new one). Wait for whichever renders and click it. Both
+  // live inside a PrimeFaces accordion that is collapsed by default, but they
+  // are present in the DOM regardless and PrimeFaces.ab fires on a
+  // programmatic click, so there is no need to expand the accordion first.
+  async function handleLicencePage() {
+    const target = await waitFor(
+      () => {
+        const manage = findButtonByLabel("Manage booking");
+        if (manage) return { el: manage, label: "Manage booking" };
+        const book = document.getElementById("form:j_idt239:bookPDA");
+        if (book) return { el: book, label: "Book PDA" };
+        return null;
+      },
+      { timeout: 30000 },
+    );
+    if (!target) {
+      log("Neither Manage booking nor Book PDA button found.");
+      return;
+    }
+    log(`Clicking "${target.label}".`);
+    target.el.click();
+  }
+
+  // The /pdabooking path is reached in two ways:
+  //  - "Book PDA": lands directly on an enabled search form.
+  //  - "Manage booking": lands on the current-bookings page. The same search
+  //    form is present here but every field is disabled="disabled"; clicking
+  //    the "Change" button (a Wicket AJAX submit) enables it in place.
+  async function handleManageOrBookingPage() {
+    // Ready when the search form is enabled; otherwise fall back to a Change
+    // button so we can enable it.
+    const isFormEnabled = () => {
+      const from = document.getElementById("fromDateInput");
+      return from && !from.disabled;
+    };
+
+    const target = await waitFor(
+      () =>
+        (isFormEnabled() && document.getElementById("fromDateInput")) ||
+        document.querySelector('input[value="Change"][name$=":change"]'),
+      { timeout: 30000 },
+    );
+    if (!target) {
+      log("Neither an enabled search form nor a Change button appeared.");
+      return;
+    }
+
+    // Disabled form + Change button => managing an existing booking. Click
+    // Change and wait for the AJAX response to enable the fields.
+    if (!isFormEnabled()) {
+      log("Current booking detected. Clicking Change to enable the form.");
+      target.click();
+      const enabled = await waitFor(() => isFormEnabled(), { timeout: 30000 });
+      if (!enabled) {
+        log("Search form did not become enabled after clicking Change.");
+        return;
+      }
+    }
+
+    await handleBookingPage();
+  }
+
   // --- Router --------------------------------------------------------------
   // These are full JSF/Wicket page loads, so the script re-runs per page and
   // we can dispatch by URL path.
@@ -264,14 +343,13 @@
       // Step 3: on the home page, open Driver's Licence.
       await clickById("menuForm:menubar_licence", "Driver's Licence menu item");
     } else if (path.includes("/licence.jsf")) {
-      // Step 4: click Book PDA. The button lives inside an accordion that is
-      // collapsed ("invisible") by default, but it is present in the DOM
-      // regardless and PrimeFaces.ab fires on a programmatic click, so we can
-      // click it directly without expanding the accordion first.
-      await clickById("form:j_idt239:bookPDA", "Book PDA button");
+      // Step 4: expand the PDA bookings accordion, then open the booking flow
+      // (Manage booking for an existing booking, else Book PDA).
+      await handleLicencePage();
     } else if (path.includes("/pdabooking")) {
-      // Step 5: pre-fill the booking search.
-      await handleBookingPage();
+      // Step 5: pre-fill the booking search (via Change when managing an
+      // existing booking).
+      await handleManageOrBookingPage();
     } else {
       log("No automation for this page:", path);
     }
