@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.7.6
+// @version      2.8.0
 // @description  Submit ChatGPT prompts via a URL query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -15,11 +15,26 @@
 const QUERY_KEY = "cq";
 const STORAGE_KEY = "chatgpt-url-query";
 const LOG_PREFIX = "[ChatGPT URL Query]";
-const SEND_SELECTOR = 'button[data-testid="send-button"]';
+
+// The composer lives inside a <form>; scoping to it keeps us off other
+// ProseMirror instances on the page (e.g. editing an earlier message).
+const FORM_SELECTORS = [
+  "form[data-chatgpt-composer]",
+  "form[data-thread-find-composer]",
+];
 const COMPOSER_SELECTORS = [
-  '#prompt-textarea[contenteditable="true"]',
-  '.ProseMirror[contenteditable="true"]',
-  'textarea[name="prompt-textarea"]',
+  '.ProseMirror[contenteditable="true"][data-composer-markdown]',
+  '[contenteditable="true"][role="textbox"]',
+  '#prompt-textarea[contenteditable="true"]', // legacy builds
+  'textarea[name="prompt-textarea"]', // legacy builds
+];
+// The primary composer button swaps between three states in the same slot:
+// voice (empty) -> submit (has text) -> stop (generating). Only the send state
+// is type="submit", which makes it the one locale-independent way to spot it;
+// aria-label is translated and data-testid no longer exists.
+const SEND_SELECTORS = [
+  'button[type="submit"]',
+  'button[data-testid="send-button"]', // legacy builds
 ];
 
 const immediateQuery = new URLSearchParams(window.location.search).get(
@@ -37,9 +52,10 @@ if (immediateQuery) {
   /**
    * Overall flow:
    * - Load and stash the query before SPA routing.
-   * - Fill the textarea ASAP when it appears (don't wait for button).
+   * - Fill the composer ASAP when it appears (don't wait for the button).
    * - After filling, wait for the enabled Send button to appear.
-   * - Prefer Enter key for sending; fall back to clicking if needed.
+   * - Send, then verify; escalate through Enter -> click -> requestSubmit,
+   *   re-checking "has it already gone out?" before every escalation.
    */
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -172,20 +188,46 @@ if (immediateQuery) {
     );
   };
 
-  const findComposer = () => {
-    for (const selector of COMPOSER_SELECTORS) {
-      const node = document.querySelector(selector);
+  const findFirst = (selectors, root = document) => {
+    for (const selector of selectors) {
+      const node = root.querySelector(selector);
       if (node && isVisible(node)) return node;
     }
     return null;
   };
 
-  const isSendButtonReady = (button) => {
-    // Selector already guarantees data-testid="send-button"; just check enabled + aria-label.
-    if (!button || isDisabled(button)) return false;
-    const ariaLabel = button.getAttribute("aria-label");
-    return ariaLabel && ariaLabel.toLowerCase().includes("send");
+  const findComposerForm = () => findFirst(FORM_SELECTORS);
+
+  const findComposer = () => {
+    // Prefer the composer inside the form; fall back to a page-wide lookup in
+    // case the form wrapper is renamed again.
+    const form = findComposerForm();
+    return (
+      (form && findFirst(COMPOSER_SELECTORS, form)) ||
+      findFirst(COMPOSER_SELECTORS)
+    );
   };
+
+  const findSendButton = () => {
+    const form = findComposerForm();
+    const button =
+      (form && findFirst(SEND_SELECTORS, form)) || findFirst(SEND_SELECTORS);
+    return button && !isDisabled(button) ? button : null;
+  };
+
+  const composerIsEmpty = (elem) =>
+    !(elem.isContentEditable ? elem.textContent : elem.value || "").trim();
+
+  const hasBeenSent = (elem) => {
+    // Once the prompt goes out, ChatGPT clears the composer and the submit
+    // button is replaced by the stop/voice button. Both must hold, so we never
+    // escalate into a second send while the first one is still in flight.
+    if (!document.contains(elem)) return true;
+    return composerIsEmpty(elem) && !findSendButton();
+  };
+
+  const waitUntilSent = (elem, timeout) =>
+    waitFor(() => (hasBeenSent(elem) ? true : null), { timeout });
 
   const queryFromStorage = sessionStorage.getItem(STORAGE_KEY);
   const queryFromUrl = new URLSearchParams(window.location.search).get(
@@ -210,9 +252,12 @@ if (immediateQuery) {
     window.history.replaceState({}, document.title, cleanedUrl.toString());
   }
 
-  if (document.readyState !== "complete") {
+  if (!document.documentElement) {
+    // waitFor observes documentElement, so make sure it exists. We deliberately
+    // do NOT wait for "load" — the composer is usually interactive well before
+    // ChatGPT finishes fetching everything else.
     await new Promise((resolve) => {
-      window.addEventListener("load", resolve, { once: true });
+      document.addEventListener("readystatechange", resolve, { once: true });
     });
   }
 
@@ -227,59 +272,51 @@ if (immediateQuery) {
 
   console.log(LOG_PREFIX, "Composer found, filling text");
   setComposerText(composer, query);
-  await delay(80);
+
+  // STEP 2: Wait for the send button to appear. The composer button starts as
+  // voice input and only becomes a submit button once React sees the text.
+  console.log(LOG_PREFIX, "Text filled, waiting for send button");
+  const sendButton = await waitFor(findSendButton, { timeout: 8000 });
   console.log(
     LOG_PREFIX,
-    "Text filled, waiting for send button to become ready",
+    sendButton
+      ? "Send button is ready"
+      : "Send button never appeared, sending blind",
   );
 
-  // STEP 2: Now wait for the send button to become enabled and ready
-  // The button transitions: disabled → voice mode → enabled send button
-  const readySendButton = await waitFor(
-    () => {
-      const btn = document.querySelector(SEND_SELECTOR);
-      return isSendButtonReady(btn) ? btn : null;
-    },
-    { timeout: 15000 },
-  );
+  // STEP 3: Send, verifying after each attempt instead of guessing at delays.
+  const activeComposer = findComposer() || composer;
+  activeComposer.focus();
 
-  if (!readySendButton) {
-    // If button never becomes ready, try Enter key as fallback
-    console.log(
-      LOG_PREFIX,
-      "Send button never became ready, trying Enter key as fallback",
-    );
-    composer.focus();
-    await delay(50);
-    simulateEnter(composer);
+  console.log(LOG_PREFIX, "Simulating Enter key press");
+  simulateEnter(activeComposer);
+  if (await waitUntilSent(activeComposer, 1200)) {
+    console.log(LOG_PREFIX, "Sent via Enter key");
     return;
   }
 
-  console.log(LOG_PREFIX, "Send button is ready");
-
-  // STEP 3: Button is ready, give ChatGPT's validation a moment to settle
-  await delay(100);
-
-  // Re-find and focus composer (DOM might have updated)
-  const activeComposer = findComposer() || composer;
-  console.log(LOG_PREFIX, "Focusing composer and attempting to send");
-  activeComposer.focus();
-  await delay(50);
-
-  // Try Enter key first (preferred method)
-  console.log(LOG_PREFIX, "Simulating Enter key press");
-  simulateEnter(activeComposer);
-
-  // If Enter didn't work after a short wait, click the button as backup
-  await delay(200);
-  const finalButton = document.querySelector(SEND_SELECTOR);
-  if (finalButton && isSendButtonReady(finalButton)) {
-    console.log(
-      LOG_PREFIX,
-      "Enter key might not have worked, clicking send button as backup",
-    );
-    simulateClick(finalButton);
-  } else {
-    console.log(LOG_PREFIX, "Send attempt completed");
+  const clickable = findSendButton();
+  if (clickable) {
+    console.log(LOG_PREFIX, "Enter did not send, clicking send button");
+    simulateClick(clickable);
+    if (await waitUntilSent(activeComposer, 1200)) {
+      console.log(LOG_PREFIX, "Sent via send button");
+      return;
+    }
   }
+
+  const form = findComposerForm();
+  if (form && findSendButton() && typeof form.requestSubmit === "function") {
+    console.log(LOG_PREFIX, "Click did not send, submitting the form directly");
+    form.requestSubmit(findSendButton());
+    if (await waitUntilSent(activeComposer, 1200)) {
+      console.log(LOG_PREFIX, "Sent via form submit");
+      return;
+    }
+  }
+
+  console.log(
+    LOG_PREFIX,
+    "Could not confirm the prompt was sent; leaving the text in the composer",
+  );
 })();
