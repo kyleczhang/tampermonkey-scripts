@@ -2,26 +2,16 @@
 
 ## What this repo is
 
-A flat collection of standalone Tampermonkey (userscript) `.js` files — one script per file, no build step and no tests. Each file is the deliverable; users install it directly into Tampermonkey. The only tooling is Prettier (code formatting) and a Git pre-commit hook; the lone dependency (`prettier`) is dev-only and never ships in the scripts.
+A flat collection of standalone Tampermonkey (userscript) `.js` files — one script per file, no build step and no tests. Each file is the deliverable; users install it directly into Tampermonkey. The only tooling is Prettier (code formatting); the lone dependency (`prettier`) is dev-only and never ships in the scripts.
 
-There is nothing to build or run from a terminal. Code is formatted with Prettier — run `npm install` once, then `npm run format` to format everything or `npm run format:check` to verify without writing (config in `.prettierrc.json`, editor defaults in `.editorconfig`). To test a change, install/reload the script in Tampermonkey and exercise it on the target site (watch the `console.log` output, every script prefixes logs with a bracketed tag like `[Claude URL Query]`).
+There is nothing to build or run from a terminal. Code is formatted with Prettier — run `npm install` once, then `npm run format` to format everything or `npm run format:check` to verify without writing (config in `.prettierrc.json`, editor defaults in `.editorconfig`). Nothing runs Prettier for you, so format before committing. To test a change, install/reload the script in Tampermonkey and exercise it on the target site (watch the `console.log` output, every script prefixes logs with a bracketed tag like `[Claude URL Query]`).
 
 ## Distribution mechanism (critical)
 
 Every script's metadata block points `@downloadURL`/`@updateURL` at `https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/<filename>.js`. Two consequences:
 
 - **The filename is part of the public contract.** Renaming a file breaks auto-update for everyone who installed it. Don't rename without intent.
-- **Bumping `@version` is how updates ship.** Tampermonkey only pulls an update when the version in the metadata block is higher than the installed one. **Any change to a script's code must include a `@version` bump** — no matter how trivial (even pure formatting). The simplest rule is: if the file's code changed, its version goes up. The pre-commit hook does this automatically.
-
-### Formatting and version bumping are automated by a pre-commit hook
-
-`.githooks/pre-commit` does two things to staged files: (1) runs Prettier on them and re-stages the result, then (2) auto-bumps the last component of `@version` (e.g. `1.0.0` → `1.0.1`) for every staged `.js` whose code changed — so you normally **do not format or bump manually**. Details:
-
-- Formatting runs first so whitespace changes never mask a real code diff. It uses the local `node_modules/.bin/prettier`; if Prettier isn't installed (no `npm install`) the hook prints a warning and skips formatting instead of failing.
-- If you _did_ edit the `@version` line yourself in the same commit, the hook detects it and skips that file (no double bump) — do this when you want a minor/major bump rather than patch, e.g. set `2.0.0` by hand.
-- Commits that touch no `.js` (docs, the Auto-backup commits) bump nothing.
-- Escape hatches exist but should be rare: `SKIP_FORMAT=1` skips formatting and `SKIP_BUMP=1` skips the version bump for one commit. Don't use `SKIP_BUMP` just because a change is "only formatting" — per the rule above, any code change should bump.
-- The hook lives in `.githooks/` (tracked) and is wired via `git config core.hooksPath .githooks`. Git does not enable repo hooks automatically, so **a fresh clone must run that `git config` command once** or the hook won't fire.
+- **Bumping `@version` is how updates ship.** Tampermonkey only pulls an update when the version in the metadata block is higher than the installed one. **Any change to a script's code must include a `@version` bump** — no matter how trivial (even pure formatting). The simplest rule is: if the file's code changed, its version goes up. This is not automated — edit the `@version` line by hand in the same commit: bump the last component for an ordinary fix (`1.0.0` → `1.0.1`), or the middle one for a larger rework such as a selector overhaul (`2.7.6` → `2.8.0`).
 
 ### Commit messages
 
