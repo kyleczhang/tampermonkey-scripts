@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DeepSeek URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.3.0
 // @description  Submit DeepSeek prompts via a URL query parameter
 // @author       kyleczhang
 // @match        https://chat.deepseek.com/*
@@ -18,10 +18,18 @@ const STORAGE_QUERY_KEY = "deepseek-url-query-cq";
 const LOG_PREFIX = "[DeepSeek URL Query]";
 const COMPOSER_SELECTORS = [
   "textarea#chat-input",
-  'textarea[placeholder="Message DeepSeek"]',
+  'textarea[placeholder*="DeepSeek"]',
   "textarea.ds-scroll-area",
   "textarea",
 ];
+// The send button is the only round primary button on the page. DeepSeek's
+// hashed class names (e.g. `.bf38813a`) change between builds, so they are only
+// used as a fallback anchor.
+const SEND_BUTTON_SELECTORS = [
+  'div[role="button"].ds-button--primary.ds-button--circle',
+  '.bf38813a div[role="button"].ds-button--circle',
+];
+const SEND_BUTTON_ROW_SELECTOR = '.bf38813a div[role="button"]';
 
 const immediateParams = new URLSearchParams(window.location.search);
 const immediateQuery = immediateParams.get(QUERY_KEY);
@@ -134,6 +142,8 @@ if (immediateQuery) {
     dispatchInputEvents(elem);
   };
 
+  const isComposerEmpty = (elem) => !(elem.value || "").trim();
+
   const simulateEnter = (elem) => {
     const eventInit = {
       key: "Enter",
@@ -149,7 +159,6 @@ if (immediateQuery) {
   };
 
   const simulateClick = (elem) => {
-    elem.focus();
     elem.dispatchEvent(
       new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
     );
@@ -161,35 +170,33 @@ if (immediateQuery) {
     );
   };
 
+  // DeepSeek marks the button disabled while the composer is empty and while a
+  // reply is streaming, so this doubles as the "already sending" guard.
   const isDisabled = (elem) =>
-    elem?.getAttribute("aria-disabled") === "true" || elem?.disabled;
+    !elem ||
+    elem.disabled === true ||
+    elem.getAttribute("aria-disabled") === "true" ||
+    elem.classList.contains("ds-button--disabled");
 
-  const getButtonIconPath = (button) =>
-    button?.querySelector("svg path")?.getAttribute("d") || "";
-  const isAttachIcon = (path) => path.startsWith("M5.5498 9.75V5H6.9502V9.75");
-  const isSendIcon = (path) => path.startsWith("M8.3125 0.981587");
-  const isStopIcon = (path) => path.startsWith("M2 4.88");
-
-  const findSendOrStopButton = () => {
-    const candidates = Array.from(
-      document.querySelectorAll('.bf38813a div[role="button"]'),
-    );
-    for (let i = candidates.length - 1; i >= 0; i--) {
-      const button = candidates[i];
-      if (!isVisible(button)) continue;
-      const iconPath = getButtonIconPath(button);
-      if (isAttachIcon(iconPath)) continue;
-      if (isSendIcon(iconPath) || isStopIcon(iconPath)) return button;
-      if (button.classList.contains("ds-icon-button")) return button;
+  const findSendButton = () => {
+    for (const selector of SEND_BUTTON_SELECTORS) {
+      const candidates = Array.from(document.querySelectorAll(selector)).filter(
+        isVisible,
+      );
+      if (candidates.length) return candidates[candidates.length - 1];
+    }
+    // Last resort: the trailing button of the composer's action row. The
+    // attachment button is a capsule, the send button is not.
+    const row = Array.from(
+      document.querySelectorAll(SEND_BUTTON_ROW_SELECTOR),
+    ).filter(isVisible);
+    for (let i = row.length - 1; i >= 0; i--) {
+      if (!row[i].classList.contains("ds-button--capsule")) return row[i];
     }
     return null;
   };
 
-  const isSendButtonReady = (button) => {
-    if (!button || isDisabled(button)) return false;
-    const iconPath = getButtonIconPath(button);
-    return isSendIcon(iconPath);
-  };
+  const isSendButtonReady = (button) => Boolean(button) && !isDisabled(button);
 
   const params = new URLSearchParams(window.location.search);
   const query =
@@ -222,32 +229,34 @@ if (immediateQuery) {
   console.log(LOG_PREFIX, "Waiting for send button");
   const readySendButton = await waitFor(
     () => {
-      const button = findSendOrStopButton();
+      const button = findSendButton();
       return isSendButtonReady(button) ? button : null;
     },
-    { timeout: 20000 },
+    { timeout: 10000 },
   );
 
   if (!readySendButton) {
-    console.log(
-      LOG_PREFIX,
-      "Send button did not become ready, trying Enter fallback",
-    );
-    composer.focus();
-    await delay(50);
-    simulateEnter(composer);
-    return;
+    console.log(LOG_PREFIX, "Send button never became ready, sending anyway");
   }
 
-  // Prefer Enter first.
+  // Enter first; DeepSeek clears the composer once the message is on its way.
   composer.focus();
   await delay(50);
   simulateEnter(composer);
 
-  // Backup click only if the button is still in "send" mode (not "stop generating").
-  await delay(220);
-  const finalButton = findSendOrStopButton();
-  if (isSendButtonReady(finalButton)) {
-    simulateClick(finalButton);
+  // Backup click only if Enter left the text sitting in the composer.
+  await delay(250);
+  if (!isComposerEmpty(composer)) {
+    const button = findSendButton();
+    if (isSendButtonReady(button)) {
+      console.log(LOG_PREFIX, "Enter did not send, clicking the send button");
+      simulateClick(button);
+      await delay(400);
+    }
   }
+
+  console.log(
+    LOG_PREFIX,
+    isComposerEmpty(composer) ? "Query sent" : "Query may not have been sent",
+  );
 })();
