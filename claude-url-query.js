@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Claude URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.0.2
+// @version      1.0.3
 // @description  Submit Claude prompts via a URL query parameter
 // @author       kyleczhang
 // @match        https://claude.ai/*
@@ -177,7 +177,9 @@ if (immediateQuery) {
   const query = sessionStorage.getItem(STORAGE_KEY) || getQueryFromLocation();
   if (!query) return;
 
-  sessionStorage.removeItem(STORAGE_KEY);
+  // Keep the stored query until we actually send, so a reload while the page
+  // is still loading doesn't lose it.
+  const clearStoredQuery = () => sessionStorage.removeItem(STORAGE_KEY);
 
   const cleanedUrl = new URL(window.location.href);
   let urlChanged = false;
@@ -195,6 +197,7 @@ if (immediateQuery) {
   const composer = await waitFor(findComposer, { timeout: 30000 });
   if (!composer) {
     log("Composer not found, exiting");
+    clearStoredQuery();
     return;
   }
 
@@ -202,6 +205,8 @@ if (immediateQuery) {
 
   const readySendButton = await waitFor(findReadySendButton, { timeout: 8000 });
 
+  // Clear the stored query first so a reload after sending can't send it twice.
+  clearStoredQuery();
   const activeComposer = findComposer() || composer;
   activeComposer.focus();
   await delay(20);

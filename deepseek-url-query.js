@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DeepSeek URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.3.1
 // @description  Submit DeepSeek prompts via a URL query parameter
 // @author       kyleczhang
 // @match        https://chat.deepseek.com/*
@@ -208,7 +208,9 @@ if (immediateQuery) {
   }
 
   console.log(LOG_PREFIX, "Processing query");
-  sessionStorage.removeItem(STORAGE_QUERY_KEY);
+  // Keep the stored query until we actually send, so a reload while the page
+  // is still loading doesn't lose it.
+  const clearStoredQuery = () => sessionStorage.removeItem(STORAGE_QUERY_KEY);
 
   const cleanUrl = new URL(window.location.href);
   if (cleanUrl.searchParams.has(QUERY_KEY)) {
@@ -220,6 +222,7 @@ if (immediateQuery) {
   const composer = await waitFor(findComposer, { timeout: 30000 });
   if (!composer) {
     console.log(LOG_PREFIX, "Composer not found, exiting");
+    clearStoredQuery();
     return;
   }
 
@@ -238,6 +241,9 @@ if (immediateQuery) {
   if (!readySendButton) {
     console.log(LOG_PREFIX, "Send button never became ready, sending anyway");
   }
+
+  // Clear the stored query first so a reload after sending can't send it twice.
+  clearStoredQuery();
 
   // Enter first; DeepSeek clears the composer once the message is on its way.
   composer.focus();
