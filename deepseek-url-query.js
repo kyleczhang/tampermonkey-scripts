@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DeepSeek URL Query
 // @namespace    http://tampermonkey.net/
-// @version      1.3.1
+// @version      1.3.2
 // @description  Submit DeepSeek prompts via a URL query parameter
 // @author       kyleczhang
 // @match        https://chat.deepseek.com/*
@@ -144,6 +144,10 @@ if (immediateQuery) {
 
   const isComposerEmpty = (elem) => !(elem.value || "").trim();
 
+  // Sending routes to the new chat and unmounts the original textarea, which
+  // keeps its old value, so a detached composer also means it went out.
+  const hasBeenSent = (elem) => !elem.isConnected || isComposerEmpty(elem);
+
   const simulateEnter = (elem) => {
     const eventInit = {
       key: "Enter",
@@ -252,7 +256,7 @@ if (immediateQuery) {
 
   // Backup click only if Enter left the text sitting in the composer.
   await delay(250);
-  if (!isComposerEmpty(composer)) {
+  if (!hasBeenSent(composer)) {
     const button = findSendButton();
     if (isSendButtonReady(button)) {
       console.log(LOG_PREFIX, "Enter did not send, clicking the send button");
@@ -263,6 +267,6 @@ if (immediateQuery) {
 
   console.log(
     LOG_PREFIX,
-    isComposerEmpty(composer) ? "Query sent" : "Query may not have been sent",
+    hasBeenSent(composer) ? "Query sent" : "Query may not have been sent",
   );
 })();
