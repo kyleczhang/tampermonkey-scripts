@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT URL Query
 // @namespace    http://tampermonkey.net/
-// @version      2.8.0
+// @version      2.8.1
 // @description  Submit ChatGPT prompts via a URL query parameter
 // @author       kyleczhang
 // @match        https://chatgpt.com/*
@@ -243,7 +243,10 @@ if (immediateQuery) {
 
   console.log(LOG_PREFIX, "Processing query:", query);
 
-  sessionStorage.removeItem(STORAGE_KEY);
+  // Keep the stored query until we actually send: ChatGPT reloads a freshly
+  // opened tab right after the first load, and clearing it any earlier would
+  // lose the query to that reload.
+  const clearStoredQuery = () => sessionStorage.removeItem(STORAGE_KEY);
 
   const cleanedUrl = new URL(window.location.href);
   if (cleanedUrl.searchParams.has(QUERY_KEY)) {
@@ -267,6 +270,7 @@ if (immediateQuery) {
   if (!composer) {
     // Do not hang forever—silently exit so the page works normally.
     console.log(LOG_PREFIX, "Composer not found, exiting");
+    clearStoredQuery();
     return;
   }
 
@@ -285,6 +289,8 @@ if (immediateQuery) {
   );
 
   // STEP 3: Send, verifying after each attempt instead of guessing at delays.
+  // Clear the stored query first so a reload after sending can't send it twice.
+  clearStoredQuery();
   const activeComposer = findComposer() || composer;
   activeComposer.focus();
 
