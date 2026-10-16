@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LeetCode Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      2.1.0
-// @description  Quality-of-life tools for leetcode.com problem pages: a button that opens the same problem on leetcode.cn, plus Ctrl+` / Cmd+B to fold and unfold the testcase and description panels.
+// @version      2.1.1
+// @description  Quality-of-life tools for leetcode.com problem pages: a button that opens the same problem's solutions page on leetcode.cn, plus Ctrl+` / Cmd+B to fold and unfold the testcase and description panels.
 // @author       kyleczhang
 // @match        https://leetcode.com/problems/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=leetcode.com
@@ -25,7 +25,7 @@
   // Feature: LeetCode.cn link
   //
   // Adds a globe button at the right end of the problem page's top button row
-  // that opens the same problem on leetcode.cn in a new tab.
+  // that opens the same problem's solutions page on leetcode.cn in a new tab.
   // ==========================================================================
 
   const cnProblemLink = (function () {
@@ -46,37 +46,25 @@
       "</svg>";
 
     // leetcode.com and leetcode.cn use the same English problem slug, so the
-    // whole mapping is origin + slug. The tab under the problem is kept when
-    // leetcode.cn has the same one; anything else (including /editorial/, which
-    // is /solutions/ over there) falls back to the description tab.
-    const TAB_MAP = {
-      description: "description",
-      solutions: "solutions",
-      submissions: "submissions",
-      editorial: "solutions",
-    };
+    // whole mapping is origin + slug. The link always lands on leetcode.cn's
+    // solutions tab, whichever tab is open here: that's what it's for.
+    const CN_TAB = "solutions";
 
     // -- URL helpers ---------------------------------------------------------
 
-    // ["two-sum", "description"] for /problems/two-sum/description/, or null when
-    // the current page isn't a problem page.
-    function parseProblemPath() {
-      const match = location.pathname.match(
-        /^\/problems\/([^/]+)(?:\/([^/]+))?/,
-      );
-      if (!match) {
-        return null;
-      }
-      return { slug: match[1], tab: match[2] || "" };
+    // "two-sum" for /problems/two-sum/description/, or null when the current
+    // page isn't a problem page.
+    function parseProblemSlug() {
+      const match = location.pathname.match(/^\/problems\/([^/]+)/);
+      return match ? match[1] : null;
     }
 
     function buildCnUrl() {
-      const problem = parseProblemPath();
-      if (!problem) {
+      const slug = parseProblemSlug();
+      if (!slug) {
         return null;
       }
-      const tab = TAB_MAP[problem.tab] || "description";
-      return CN_ORIGIN + "/problems/" + problem.slug + "/" + tab + "/";
+      return CN_ORIGIN + "/problems/" + slug + "/" + CN_TAB + "/";
     }
 
     // -- Button injection ----------------------------------------------------
@@ -119,7 +107,7 @@
       link.href = href;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.title = "Open this problem on LeetCode.cn";
+      link.title = "Open this problem's solutions on LeetCode.cn";
       link.setAttribute("aria-label", "Open on LeetCode.cn");
 
       // Same 16x16 footprint as the neighbouring icons; the tooltip carries the
