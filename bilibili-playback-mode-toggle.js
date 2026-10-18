@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili Playback Mode Toggle
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Add a toolbar icon on Bilibili video pages that shows and toggles the playback mode (自动切集 / 播完暂停), backed by the bpx_player_profile "media.handoff" setting (0 = auto next, 2 = stop when finished).
 // @author       kyleczhang
 // @match        https://www.bilibili.com/video/*
@@ -39,62 +39,40 @@
     }
   }
 
-  // The player's own radio control. Driving it (rather than just writing
-  // localStorage) is what makes a toggle take effect on the *currently running*
-  // player without a page reload — the player only reads localStorage on init.
-  function findHandoffRadios() {
-    return document.querySelectorAll(
-      ".bpx-player-ctrl-setting-handoff input.bui-radio-input",
-    );
-  }
-
-  function readHandoffFromUI() {
-    for (const radio of findHandoffRadios()) {
-      if (radio.checked) {
-        const value = Number(radio.value);
-        if (!Number.isNaN(value)) {
-          return value;
-        }
-      }
-    }
-    return null;
+  // The live player (@grant none runs in the page, so this is reachable). Its
+  // in-memory value is what decides what happens when a video ends — the
+  // settings-panel radio can be stale, and localStorage is only read on init.
+  function getPlayer() {
+    const player = window.player;
+    return player && typeof player.setHandoff === "function" ? player : null;
   }
 
   function readHandoff() {
-    // Prefer the live player UI; fall back to the persisted profile.
-    const fromUI = readHandoffFromUI();
-    if (fromUI !== null) {
-      return fromUI;
+    const player = getPlayer();
+    if (player) {
+      return player.getHandoff();
     }
+    // Player not mounted yet — show what it will load.
     const profile = readProfile();
     const handoff = profile.media && profile.media.handoff;
     return typeof handoff === "number" ? handoff : HANDOFF_AUTO;
   }
 
-  function writeHandoffToStorage(value) {
-    const profile = readProfile();
-    if (!profile.media || typeof profile.media !== "object") {
-      profile.media = {};
+  function setHandoff(value) {
+    const player = getPlayer();
+    if (player) {
+      // Updates the running player, which persists to localStorage itself.
+      player.setHandoff(value);
+      return;
     }
-    profile.media.handoff = value;
+    // Player not mounted yet — persist it so the player picks it up on init.
+    const profile = readProfile();
+    profile.media = { ...profile.media, handoff: value };
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   }
 
-  function setHandoff(value) {
-    // Click the matching native radio so the player updates its in-memory state
-    // (and persists to localStorage itself). This is what makes it work live.
-    for (const radio of findHandoffRadios()) {
-      if (Number(radio.value) === value) {
-        radio.click();
-        return;
-      }
-    }
-    // Settings panel not mounted yet — at least persist it for the next load.
-    writeHandoffToStorage(value);
-  }
-
-  // Paint the current state into an existing toolbar item. Only mutates the DOM
-  // when the stored value actually changed (tracked via dataset) to avoid churn.
+  // Paint the current state into the toolbar item. Only mutates the DOM when
+  // the value actually changed (tracked via dataset) to avoid churn.
   function render(item) {
     const handoff = readHandoff();
     if (item.dataset.handoff === String(handoff)) {
@@ -123,10 +101,8 @@
     item.className = "video-toolbar-left-item";
     item.style.cursor = "pointer";
     item.addEventListener("click", () => {
-      const next = readHandoff() === HANDOFF_STOP ? HANDOFF_AUTO : HANDOFF_STOP;
-      setHandoff(next);
-      // Repaint after the player has processed the radio click.
-      setTimeout(() => render(item), 0);
+      setHandoff(readHandoff() === HANDOFF_STOP ? HANDOFF_AUTO : HANDOFF_STOP);
+      render(item);
     });
 
     wrap.appendChild(item);
