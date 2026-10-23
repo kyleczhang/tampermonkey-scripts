@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         LeetCode Toolkit
 // @namespace    http://tampermonkey.net/
-// @version      2.1.1
+// @version      2.1.2
 // @description  Quality-of-life tools for leetcode.com problem pages: a button that opens the same problem's solutions page on leetcode.cn, plus Ctrl+` / Cmd+B to fold and unfold the testcase and description panels.
 // @author       kyleczhang
 // @match        https://leetcode.com/problems/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=leetcode.com
+// @icon         https://assets.leetcode.com/static_assets/public/icons/favicon.ico
 // @license      MIT
 // @downloadURL  https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/leetcode-toolkit.js
 // @updateURL    https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/leetcode-toolkit.js
