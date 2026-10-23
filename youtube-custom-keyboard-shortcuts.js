@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Custom Keyboard Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
-// @description  Custom YouTube shortcuts: [ / ] adjust speed by 0.25, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward, - and = fast-forward 1 / 10 minutes, n / p go to next / previous video. Triggers YouTube's native feedback animations by simulating its native shortcuts.
+// @version      1.3.0
+// @description  Custom YouTube shortcuts: [ / ] step speed through 1 / 1.25 / 1.5 / 2 / 3x, 1 / 2 / 3 / 4 jump to 1 / 1.5 / 2 / 3x, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward, - and = fast-forward 1 / 10 minutes, n / p go to next / previous video. Triggers YouTube's native feedback animations by simulating its native shortcuts.
 // @author       kyleczhang
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
@@ -15,7 +15,19 @@
 (function () {
   "use strict";
 
+  // YouTube's native Shift+< / Shift+> step, used to land on a target speed
+  // with a single native animation.
   const SPEED_STEP = 0.25;
+  // The speeds `[` / `]` walk through, in order. `]` stops at the top.
+  const SPEED_LADDER = [1.0, 1.25, 1.5, 2.0, 3.0];
+  // Digit -> speed, kept identical to the Bilibili shortcuts script. This
+  // overrides YouTube's native 0-9 "seek to N0%" for these keys.
+  const RATE_KEYS = {
+    1: 1.0,
+    2: 1.5,
+    3: 2.0,
+    4: 3.0,
+  };
   const DEFAULT_TOGGLE_RATE = 2.0;
   const KEY_DELAY_MS = 60; // delay between a silent set and the simulated native key
 
@@ -182,6 +194,21 @@
     }, KEY_DELAY_MS);
   }
 
+  // `[` / `]` move to the previous / next ladder speed relative to the current
+  // one, so a speed set elsewhere (e.g. 1.75x from the menu) still steps to the
+  // nearest ladder entry in that direction. No-op past either end.
+  function stepLadder(direction) {
+    const current = getRate();
+    const EPS = 0.001;
+    const target =
+      direction > 0
+        ? SPEED_LADDER.find((rate) => rate > current + EPS)
+        : SPEED_LADDER.findLast((rate) => rate < current - EPS);
+    if (target !== undefined) {
+      changeRateTo(target);
+    }
+  }
+
   // `\` toggle between 1.0x and the last non-1.0x speed.
   function toggleRate() {
     const current = getRate();
@@ -231,14 +258,22 @@
         return;
       }
 
+      if (RATE_KEYS[event.key] !== undefined) {
+        // Also stop propagation so YouTube's native "seek to N0%" doesn't run.
+        event.preventDefault();
+        event.stopPropagation();
+        changeRateTo(RATE_KEYS[event.key]);
+        return;
+      }
+
       switch (event.key) {
         case "[":
           event.preventDefault();
-          simulateSpeedDown();
+          stepLadder(-1);
           break;
         case "]":
           event.preventDefault();
-          simulateSpeedUp();
+          stepLadder(1);
           break;
         case "\\":
           event.preventDefault();
