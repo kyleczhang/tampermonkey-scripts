@@ -10,7 +10,8 @@ There is nothing to build or run from a terminal. Code is formatted with Prettie
 
 Every script's metadata block points `@downloadURL`/`@updateURL` at `https://raw.githubusercontent.com/kyleczhang/tampermonkey-scripts/refs/heads/main/<filename>.js`. Two consequences:
 
-- **The filename is part of the public contract.** Renaming a file breaks auto-update for everyone who installed it. Don't rename without intent.
+- **All scripts are for the owner's personal use only.** Nobody else is assumed to have installed them, so there are no other users to protect: renaming, merging, splitting, or deleting scripts is fine whenever it makes the repo cleaner, without worrying about migration paths or breaking someone else's install. The owner just reinstalls the new file and removes the old one in Tampermonkey.
+- **The filename is part of the auto-update URL.** Renaming a file stops the installed copy from auto-updating, so after a rename the new file has to be installed manually (and the old one removed, or both will run).
 - **Bumping `@version` is how updates ship.** Tampermonkey only pulls an update when the version in the metadata block is higher than the installed one. **Any change to a script's code must include a `@version` bump** — no matter how trivial (even pure formatting). The simplest rule is: if the file's code changed, its version goes up. Bump the last component for an ordinary fix, or the middle one for a medium-to-large rework.
 
 ### Commit messages
