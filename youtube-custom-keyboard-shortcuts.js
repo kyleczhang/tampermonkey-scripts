@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Custom Keyboard Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
-// @description  Custom YouTube shortcuts: [ / ] step speed through 1 / 1.25 / 1.5 / 2 / 3x, 1 / 2 / 3 / 4 jump to 1 / 1.5 / 2 / 3x, \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward, - and = fast-forward 1 / 10 minutes, n / p go to next / previous video. Triggers YouTube's native feedback animations by simulating its native shortcuts.
+// @version      1.4.0
+// @description  Custom YouTube shortcuts: [ / ] step speed through 0.25 / 0.5 / 1 / 1.25 / 1.5 / 2 / 3 / 4x, 1 / 2 / 3 / 4 / 5 jump to 1 / 1.5 / 2 / 3 / 4x, 6-9 are disabled (0 still seeks to the start), \ toggles between 1.0x and the last non-1.0x speed, ' and ; seek forward/backward, - and = fast-forward 1 / 10 minutes, n / p go to next / previous video. Triggers YouTube's native feedback animations by simulating its native shortcuts.
 // @author       kyleczhang
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
@@ -18,16 +18,20 @@
   // YouTube's native Shift+< / Shift+> step, used to land on a target speed
   // with a single native animation.
   const SPEED_STEP = 0.25;
-  // The speeds `[` / `]` walk through, in order. `]` stops at the top.
-  const SPEED_LADDER = [1.0, 1.25, 1.5, 2.0, 3.0];
-  // Digit -> speed, kept identical to the Bilibili shortcuts script. This
-  // overrides YouTube's native 0-9 "seek to N0%" for these keys.
+  // The speeds `[` / `]` walk through, in order. Both stop at the ends.
+  const SPEED_LADDER = [0.25, 0.5, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
+  // Digit -> speed; 1-4 match the Bilibili shortcuts script. This overrides
+  // YouTube's native "seek to N0%" for these keys.
   const RATE_KEYS = {
     1: 1.0,
     2: 1.5,
     3: 2.0,
     4: 3.0,
+    5: 4.0,
   };
+  // The remaining native "seek to N0%" digits are swallowed so a stray press
+  // can't jump the video. 0 (seek to start) is left to YouTube.
+  const BLOCKED_KEYS = ["6", "7", "8", "9"];
   const DEFAULT_TOGGLE_RATE = 2.0;
   const KEY_DELAY_MS = 60; // delay between a silent set and the simulated native key
 
@@ -162,36 +166,24 @@
   // to the adjacent step first, then simulate exactly one native shortcut so
   // only a single native animation is shown.
   function changeRateTo(target) {
-    const current = getRate();
-    const diff = Math.round((target - current) / SPEED_STEP);
-
+    const diff = Math.round((target - getRate()) / SPEED_STEP);
     if (diff === 0) {
       return; // already at target, do nothing
     }
 
     const stepUp = diff > 0;
+    const step = stepUp ? simulateSpeedUp : simulateSpeedDown;
 
     if (Math.abs(diff) === 1) {
       // Only one step away: just simulate the native shortcut directly.
-      if (stepUp) {
-        simulateSpeedUp();
-      } else {
-        simulateSpeedDown();
-      }
+      step();
       return;
     }
 
     // More than one step away: silently set to the adjacent step, then
     // simulate a single native shortcut for the final step.
-    const adjacent = stepUp ? target - SPEED_STEP : target + SPEED_STEP;
-    setRateSilently(adjacent);
-    setTimeout(() => {
-      if (stepUp) {
-        simulateSpeedUp();
-      } else {
-        simulateSpeedDown();
-      }
-    }, KEY_DELAY_MS);
+    setRateSilently(stepUp ? target - SPEED_STEP : target + SPEED_STEP);
+    setTimeout(step, KEY_DELAY_MS);
   }
 
   // `[` / `]` move to the previous / next ladder speed relative to the current
@@ -245,6 +237,13 @@
   document.addEventListener(
     "keydown",
     function (event) {
+      // The native shortcuts we simulate pass through this listener too.
+      // Without this, the simulated Shift+N would hit the "N" path below
+      // and re-simulate itself recursively.
+      if (!event.isTrusted) {
+        return;
+      }
+
       // Ignore when modifier keys are held so we don't clash with other shortcuts.
       if (event.ctrlKey || event.metaKey || event.altKey) {
         return;
@@ -258,56 +257,51 @@
         return;
       }
 
-      if (RATE_KEYS[event.key] !== undefined) {
-        // Also stop propagation so YouTube's native "seek to N0%" doesn't run.
-        event.preventDefault();
-        event.stopPropagation();
-        changeRateTo(RATE_KEYS[event.key]);
-        return;
+      const rate = RATE_KEYS[event.key];
+      if (rate !== undefined) {
+        changeRateTo(rate);
+      } else if (BLOCKED_KEYS.includes(event.key)) {
+        // Swallowed: nothing to do besides keeping it from YouTube below.
+      } else {
+        switch (event.key) {
+          case "[":
+            stepLadder(-1);
+            break;
+          case "]":
+            stepLadder(1);
+            break;
+          case "\\":
+            toggleRate();
+            break;
+          case "'":
+            simulateSeekForward();
+            break;
+          case ";":
+            simulateSeekBackward();
+            break;
+          case "-":
+            seekBySeconds(60); // fast-forward 1 minute
+            break;
+          case "=":
+            seekBySeconds(600); // fast-forward 10 minutes
+            break;
+          // Lowercase only: a real Shift+N / Shift+P already is YouTube's
+          // native next / previous, so leave it alone.
+          case "n":
+            simulateNextVideo();
+            break;
+          case "p":
+            simulatePrevVideo();
+            break;
+          default:
+            return;
+        }
       }
 
-      switch (event.key) {
-        case "[":
-          event.preventDefault();
-          stepLadder(-1);
-          break;
-        case "]":
-          event.preventDefault();
-          stepLadder(1);
-          break;
-        case "\\":
-          event.preventDefault();
-          toggleRate();
-          break;
-        case "'":
-          event.preventDefault();
-          simulateSeekForward();
-          break;
-        case ";":
-          event.preventDefault();
-          simulateSeekBackward();
-          break;
-        case "-":
-          event.preventDefault();
-          seekBySeconds(60); // fast-forward 1 minute
-          break;
-        case "=":
-          event.preventDefault();
-          seekBySeconds(600); // fast-forward 10 minutes
-          break;
-        case "n":
-        case "N":
-          event.preventDefault();
-          simulateNextVideo();
-          break;
-        case "p":
-        case "P":
-          event.preventDefault();
-          simulatePrevVideo();
-          break;
-        default:
-          break;
-      }
+      // We handled it — keep the key from reaching YouTube's own handlers
+      // (which matters for the digits' native "seek to N0%").
+      event.preventDefault();
+      event.stopPropagation();
     },
     true,
   );
