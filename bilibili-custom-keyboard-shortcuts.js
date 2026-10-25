@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bilibili Custom Keyboard Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.0.0
-// @description  Custom Bilibili video page shortcuts: n / p go to the next / previous episode by clicking the player's native 下一个 / 上一个 buttons; 1 / 2 / 3 / 4 switch the playback rate to 1x / 1.5x / 2x / 3x through the player API, with the player's own toast as feedback.
+// @version      1.1.0
+// @description  Custom Bilibili video page shortcuts: n / p go to the next / previous episode by clicking the player's native 下一个 / 上一个 buttons; 1 / 2 / 3 / 4 switch the playback rate to 1x / 1.5x / 2x / 3x through the player API, with the player's own toast as feedback; 9 jumps to the end of the video.
 // @author       kyleczhang
 // @match        https://www.bilibili.com/video/*
 // @match        https://www.bilibili.com/list/*
@@ -74,6 +74,20 @@
     } catch {}
   }
 
+  function getVideo() {
+    return document.querySelector(".bpx-player-video-wrap video");
+  }
+
+  function seekToEnd() {
+    const video = getVideo();
+    if (!video || !isFinite(video.duration)) {
+      return;
+    }
+    // Land exactly on the end so the player treats the video as finished
+    // (and auto-plays the next episode if that's switched on).
+    video.currentTime = video.duration;
+  }
+
   function setRate(rate) {
     const player = getPlayer();
     if (player) {
@@ -84,7 +98,7 @@
       return;
     }
     // Player API not available — fall back to the raw media element.
-    const video = document.querySelector(".bpx-player-video-wrap video");
+    const video = getVideo();
     if (video) {
       video.playbackRate = rate;
     }
@@ -106,6 +120,8 @@
         clickControl(NEXT_SELECTOR);
       } else if (key === "p") {
         clickControl(PREV_SELECTOR);
+      } else if (key === "9") {
+        seekToEnd();
       } else if (RATES[key] !== undefined) {
         // e.key covers both the top-row digits and the numpad.
         setRate(RATES[key]);
