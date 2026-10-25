@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bilibili Custom Keyboard Shortcuts
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
-// @description  Custom Bilibili video page shortcuts: n / p go to the next / previous episode by clicking the player's native 下一个 / 上一个 buttons; 1 / 2 / 3 / 4 switch the playback rate to 1x / 1.5x / 2x / 3x through the player API, with the player's own toast as feedback; j jumps to the end of the video.
+// @version      1.1.2
+// @description  Custom Bilibili video page shortcuts: n / p go to the next / previous episode by clicking the player's native 下一个 / 上一个 buttons; 1 / 2 / 3 / 4 switch the playback rate to 1x / 1.5x / 2x / 3x through the player API, with the player's own toast as feedback; 9 or j jumps to the end of the video.
 // @author       kyleczhang
 // @match        https://www.bilibili.com/video/*
 // @match        https://www.bilibili.com/list/*
@@ -120,7 +120,7 @@
         clickControl(NEXT_SELECTOR);
       } else if (key === "p") {
         clickControl(PREV_SELECTOR);
-      } else if (key === "j") {
+      } else if (key === "9" || key === "j") {
         seekToEnd();
       } else if (RATES[key] !== undefined) {
         // e.key covers both the top-row digits and the numpad.
